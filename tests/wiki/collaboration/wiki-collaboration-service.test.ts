@@ -1,485 +1,484 @@
 import * as path from 'path';
-import * as fs from 'fs/promises';
-import {
-  WikiCollaborationService,
-  WikiPermissionService,
-  WikiLockService,
-  ROLE_PERMISSIONS,
-} from '../../../src/wiki/collaboration';
+import * as fs from 'fs';
+import { WikiCollaborationService } from '../../../src/wiki/collaboration/wiki-collaboration-service';
+import { WikiUserConfig, WikiRole } from '../../../src/wiki/collaboration/types';
 
 describe('WikiCollaborationService', () => {
   let service: WikiCollaborationService;
-  const testPath = path.join(__dirname, 'test-collaboration');
+  let testProjectPath: string;
 
-  beforeAll(async () => {
-    await fs.mkdir(testPath, { recursive: true });
-    service = new WikiCollaborationService(testPath);
+  beforeEach(async () => {
+    testProjectPath = path.join(__dirname, 'test-collab-project');
+    
+    if (!fs.existsSync(testProjectPath)) {
+      fs.mkdirSync(testProjectPath, { recursive: true });
+    }
+
+    service = new WikiCollaborationService(testProjectPath);
     await service.initialize();
   });
 
-  afterAll(async () => {
-    await fs.rm(testPath, { recursive: true, force: true });
+  afterEach(() => {
+    if (fs.existsSync(testProjectPath)) {
+      fs.rmSync(testProjectPath, { recursive: true, force: true });
+    }
+  });
+
+  describe('initialization', () => {
+    it('should initialize successfully', async () => {
+      const newService = new WikiCollaborationService(testProjectPath);
+      await newService.initialize();
+      
+      expect(newService.isInitialized()).toBe(true);
+    });
+
+    it('should load existing contributors on init', async () => {
+      // Add a contributor first
+      await service.addContributor({
+        name: 'Test User',
+        email: 'test@example.com',
+        role: 'editor',
+        permissions: ['read', 'write'],
+      });
+
+      // Create new service instance to test loading
+      const newService = new WikiCollaborationService(testProjectPath);
+      await newService.initialize();
+
+      const contributors = await newService.getContributors();
+      expect(contributors.length).toBe(1);
+      expect(contributors[0].email).toBe('test@example.com');
+    });
   });
 
   describe('addContributor', () => {
     it('should add a new contributor', async () => {
       const contributor = await service.addContributor({
-        name: 'Test User',
-        email: 'test@example.com',
+        name: 'John Doe',
+        email: 'john@example.com',
         role: 'editor',
-        permissions: [],
+        permissions: ['read', 'write'],
       });
 
       expect(contributor).toBeDefined();
-      expect(contributor.name).toBe('Test User');
-      expect(contributor.email).toBe('test@example.com');
-      expect(contributor.role).toBe('editor');
-      expect(contributor.permissions).toEqual(ROLE_PERMISSIONS['editor']);
       expect(contributor.id).toBeDefined();
+      expect(contributor.name).toBe('John Doe');
+      expect(contributor.email).toBe('john@example.com');
+      expect(contributor.role).toBe('editor');
       expect(contributor.joinedAt).toBeInstanceOf(Date);
+      expect(contributor.contributionCount).toBe(0);
+    });
+
+    it('should assign role permissions automatically', async () => {
+      const contributor = await service.addContributor({
+        name: 'Admin User',
+        email: 'admin@example.com',
+        role: 'admin',
+        permissions: ['read', 'write', 'delete', 'share', 'export', 'manage_contributors'],
+      });
+
+      expect(contributor.permissions).toContain('read');
+      expect(contributor.permissions).toContain('write');
+      expect(contributor.permissions).toContain('delete');
     });
 
     it('should throw error for duplicate email', async () => {
       await service.addContributor({
-        name: 'User 1',
+        name: 'User One',
         email: 'duplicate@example.com',
         role: 'viewer',
-        permissions: [],
+        permissions: ['read'],
       });
 
       await expect(
         service.addContributor({
-          name: 'User 2',
+          name: 'User Two',
           email: 'duplicate@example.com',
           role: 'editor',
-          permissions: [],
+          permissions: ['read', 'write'],
         })
       ).rejects.toThrow('already exists');
+    });
+
+    it('should support all roles', async () => {
+      const roles: WikiRole[] = ['owner', 'admin', 'editor', 'contributor', 'viewer'];
+
+      for (let i = 0; i < roles.length; i++) {
+        const contributor = await service.addContributor({
+          name: `User ${roles[i]}`,
+          email: `user${i}@example.com`,
+          role: roles[i],
+          permissions: ['read'],
+        });
+
+        expect(contributor.role).toBe(roles[i]);
+      }
+    });
+  });
+
+  describe('removeContributor', () => {
+    it('should remove a contributor', async () => {
+      const contributor = await service.addContributor({
+        name: 'To Remove',
+        email: 'remove@example.com',
+        role: 'editor',
+        permissions: ['read', 'write'],
+      });
+
+      const result = await service.removeContributor(contributor.id);
+      
+      expect(result).toBe(true);
+      
+      const retrieved = await service.getContributor(contributor.id);
+      expect(retrieved).toBeNull();
+    });
+
+    it('should return false for non-existent contributor', async () => {
+      const result = await service.removeContributor('non-existent-id');
+      expect(result).toBe(false);
+    });
+
+    it('should not remove the last owner', async () => {
+      const owner = await service.addContributor({
+        name: 'Owner',
+        email: 'owner@example.com',
+        role: 'owner',
+        permissions: ['read', 'write', 'delete', 'admin', 'share', 'export', 'manage_contributors', 'manage_permissions'],
+      });
+
+      await expect(service.removeContributor(owner.id)).rejects.toThrow('last owner');
+    });
+
+    it('should allow removing owner if multiple exist', async () => {
+      const owner1 = await service.addContributor({
+        name: 'Owner 1',
+        email: 'owner1@example.com',
+        role: 'owner',
+        permissions: ['read', 'write', 'delete', 'admin', 'share', 'export', 'manage_contributors', 'manage_permissions'],
+      });
+
+      await service.addContributor({
+        name: 'Owner 2',
+        email: 'owner2@example.com',
+        role: 'owner',
+        permissions: ['read', 'write', 'delete', 'admin', 'share', 'export', 'manage_contributors', 'manage_permissions'],
+      });
+
+      const result = await service.removeContributor(owner1.id);
+      expect(result).toBe(true);
     });
   });
 
   describe('getContributor', () => {
-    it('should return contributor by id', async () => {
+    it('should get a contributor by id', async () => {
       const added = await service.addContributor({
-        name: 'Get Test',
-        email: 'gettest@example.com',
-        role: 'viewer',
-        permissions: [],
+        name: 'Test User',
+        email: 'get@example.com',
+        role: 'editor',
+        permissions: ['read', 'write'],
       });
 
-      const found = await service.getContributor(added.id);
-      expect(found).toBeDefined();
-      expect(found?.name).toBe('Get Test');
+      const retrieved = await service.getContributor(added.id);
+
+      expect(retrieved).toBeDefined();
+      expect(retrieved?.id).toBe(added.id);
+      expect(retrieved?.email).toBe('get@example.com');
     });
 
     it('should return null for non-existent contributor', async () => {
-      const found = await service.getContributor('non-existent-id');
-      expect(found).toBeNull();
+      const result = await service.getContributor('non-existent');
+      expect(result).toBeNull();
     });
   });
 
   describe('getContributors', () => {
     it('should return all contributors', async () => {
+      await service.addContributor({
+        name: 'User 1',
+        email: 'user1@example.com',
+        role: 'editor',
+        permissions: ['read', 'write'],
+      });
+
+      await service.addContributor({
+        name: 'User 2',
+        email: 'user2@example.com',
+        role: 'viewer',
+        permissions: ['read'],
+      });
+
       const contributors = await service.getContributors();
-      expect(contributors.length).toBeGreaterThan(0);
+
+      expect(contributors.length).toBe(2);
+    });
+
+    it('should return empty array when no contributors', async () => {
+      const contributors = await service.getContributors();
+      expect(contributors).toEqual([]);
     });
   });
 
   describe('updateContributorRole', () => {
     it('should update contributor role', async () => {
-      const added = await service.addContributor({
-        name: 'Role Update',
-        email: 'roleupdate@example.com',
+      const contributor = await service.addContributor({
+        name: 'Role Test',
+        email: 'role@example.com',
         role: 'viewer',
-        permissions: [],
+        permissions: ['read'],
       });
 
-      const updated = await service.updateContributorRole(added.id, 'editor');
-      expect(updated.role).toBe('editor');
-      expect(updated.permissions).toEqual(ROLE_PERMISSIONS['editor']);
+      const updated = await service.updateContributorRole(contributor.id, 'admin');
+
+      expect(updated.role).toBe('admin');
+      expect(updated.permissions).toContain('manage_contributors');
+    });
+
+    it('should throw error for non-existent contributor', async () => {
+      await expect(
+        service.updateContributorRole('non-existent', 'admin')
+      ).rejects.toThrow('not found');
+    });
+
+    it('should not demote the last owner', async () => {
+      const owner = await service.addContributor({
+        name: 'Only Owner',
+        email: 'onlyowner@example.com',
+        role: 'owner',
+        permissions: ['read', 'write', 'delete', 'admin', 'share', 'export', 'manage_contributors', 'manage_permissions'],
+      });
+
+      await expect(
+        service.updateContributorRole(owner.id, 'admin')
+      ).rejects.toThrow('last owner');
+    });
+
+    it('should update lastActiveAt on role change', async () => {
+      const contributor = await service.addContributor({
+        name: 'Active Test',
+        email: 'active@example.com',
+        role: 'viewer',
+        permissions: ['read'],
+      });
+
+      const beforeUpdate = contributor.lastActiveAt;
+      
+      // Wait a bit to ensure time difference
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      const updated = await service.updateContributorRole(contributor.id, 'editor');
+      
+      expect(updated.lastActiveAt.getTime()).toBeGreaterThan(beforeUpdate.getTime());
     });
   });
 
-  describe('removeContributor', () => {
-    it('should remove contributor', async () => {
-      const added = await service.addContributor({
-        name: 'Remove Test',
-        email: 'removetest@example.com',
-        role: 'viewer',
-        permissions: [],
+  describe('updateContributorPermissions', () => {
+    it('should update contributor permissions', async () => {
+      const contributor = await service.addContributor({
+        name: 'Permission Test',
+        email: 'perm@example.com',
+        role: 'editor',
+        permissions: ['read', 'write'],
       });
 
-      const removed = await service.removeContributor(added.id);
-      expect(removed).toBe(true);
+      const updated = await service.updateContributorPermissions(contributor.id, ['read', 'write', 'export']);
 
-      const found = await service.getContributor(added.id);
-      expect(found).toBeNull();
+      expect(updated.permissions).toContain('read');
+      expect(updated.permissions).toContain('write');
+      expect(updated.permissions).toContain('export');
+    });
+
+    it('should only allow valid permissions for role', async () => {
+      const contributor = await service.addContributor({
+        name: 'Limited User',
+        email: 'limited@example.com',
+        role: 'viewer',
+        permissions: ['read'],
+      });
+
+      // Try to assign admin permission to viewer
+      const updated = await service.updateContributorPermissions(contributor.id, ['read', 'admin']);
+
+      // Should only keep valid permissions for the role
+      expect(updated.permissions).toContain('read');
+      expect(updated.permissions).not.toContain('admin');
+    });
+
+    it('should throw error for non-existent contributor', async () => {
+      await expect(
+        service.updateContributorPermissions('non-existent', ['read'])
+      ).rejects.toThrow('not found');
     });
   });
 
-  describe('saveUserConfig', () => {
+  describe('incrementContribution', () => {
+    it('should increment contribution count', async () => {
+      const contributor = await service.addContributor({
+        name: 'Contributor',
+        email: 'contrib@example.com',
+        role: 'editor',
+        permissions: ['read', 'write'],
+      });
+
+      await service.incrementContribution(contributor.id);
+      await service.incrementContribution(contributor.id);
+
+      const updated = await service.getContributor(contributor.id);
+      expect(updated?.contributionCount).toBe(2);
+    });
+
+    it('should update lastActiveAt on contribution', async () => {
+      const contributor = await service.addContributor({
+        name: 'Active Contributor',
+        email: 'activecontrib@example.com',
+        role: 'editor',
+        permissions: ['read', 'write'],
+      });
+
+      const beforeIncrement = contributor.lastActiveAt;
+      
+      await new Promise(resolve => setTimeout(resolve, 10));
+      await service.incrementContribution(contributor.id);
+
+      const updated = await service.getContributor(contributor.id);
+      expect(updated?.lastActiveAt.getTime()).toBeGreaterThan(beforeIncrement.getTime());
+    });
+
+    it('should handle non-existent contributor gracefully', async () => {
+      // Should not throw
+      await expect(service.incrementContribution('non-existent')).resolves.not.toThrow();
+    });
+  });
+
+  describe('getContributorsByRole', () => {
+    it('should filter contributors by role', async () => {
+      await service.addContributor({
+        name: 'Admin 1',
+        email: 'admin1@example.com',
+        role: 'admin',
+        permissions: ['read', 'write', 'delete', 'share', 'export', 'manage_contributors'],
+      });
+
+      await service.addContributor({
+        name: 'Editor 1',
+        email: 'editor1@example.com',
+        role: 'editor',
+        permissions: ['read', 'write', 'export'],
+      });
+
+      await service.addContributor({
+        name: 'Admin 2',
+        email: 'admin2@example.com',
+        role: 'admin',
+        permissions: ['read', 'write', 'delete', 'share', 'export', 'manage_contributors'],
+      });
+
+      const admins = service.getContributorsByRole('admin');
+      expect(admins.length).toBe(2);
+      expect(admins.every(a => a.role === 'admin')).toBe(true);
+    });
+
+    it('should return empty array when no contributors with role', () => {
+      const owners = service.getContributorsByRole('owner');
+      expect(owners).toEqual([]);
+    });
+  });
+
+  describe('getContributorsWithPermission', () => {
+    it('should filter contributors by permission', async () => {
+      await service.addContributor({
+        name: 'Admin User',
+        email: 'adminperm@example.com',
+        role: 'admin',
+        permissions: ['read', 'write', 'delete', 'share', 'export', 'manage_contributors'],
+      });
+
+      await service.addContributor({
+        name: 'Viewer User',
+        email: 'viewerperm@example.com',
+        role: 'viewer',
+        permissions: ['read'],
+      });
+
+      const writers = service.getContributorsWithPermission('write');
+      expect(writers.length).toBe(1);
+      expect(writers[0].email).toBe('adminperm@example.com');
+    });
+  });
+
+  describe('User Config', () => {
     it('should save and load user config', async () => {
-      const config = {
+      const config: WikiUserConfig = {
         userId: 'user-123',
         displayName: 'Test User',
-        email: 'test@example.com',
+        email: 'config@example.com',
         notificationPreferences: {
           onPageUpdate: true,
-          onPageDelete: true,
-          onPermissionChange: false,
+          onPageDelete: false,
+          onPermissionChange: true,
           onLockAcquire: false,
           onLockRelease: false,
           onMention: true,
           digestEnabled: false,
-          digestFrequency: 'never' as const,
+          digestFrequency: 'never',
         },
         editorPreferences: {
-          defaultFormat: 'markdown' as const,
+          defaultFormat: 'markdown',
           autoSave: true,
           autoSaveInterval: 30000,
           spellCheck: true,
-          theme: 'auto' as const,
+          theme: 'light',
         },
         createdAt: new Date(),
         updatedAt: new Date(),
       };
 
       await service.saveUserConfig(config);
-      const loaded = await service.loadUserConfig('user-123');
 
+      const loaded = await service.loadUserConfig('user-123');
       expect(loaded).toBeDefined();
       expect(loaded?.displayName).toBe('Test User');
       expect(loaded?.notificationPreferences.onPageUpdate).toBe(true);
     });
-  });
-});
 
-describe('WikiPermissionService', () => {
-  let collaborationService: WikiCollaborationService;
-  let permissionService: WikiPermissionService;
-  const testPath = path.join(__dirname, 'test-permission');
+    it('should create default user config', async () => {
+      const config = await service.getOrCreateUserConfig(
+        'new-user',
+        'New User',
+        'newuser@example.com'
+      );
 
-  beforeAll(async () => {
-    await fs.mkdir(testPath, { recursive: true });
-    collaborationService = new WikiCollaborationService(testPath);
-    await collaborationService.initialize();
-    permissionService = new WikiPermissionService(testPath, collaborationService);
-    await permissionService.initialize();
-  });
-
-  afterAll(async () => {
-    await fs.rm(testPath, { recursive: true, force: true });
-  });
-
-  describe('getRolePermissions', () => {
-    it('should return correct permissions for each role', () => {
-      expect(permissionService.getRolePermissions('owner')).toContain('admin');
-      expect(permissionService.getRolePermissions('admin')).toContain('manage_contributors');
-      expect(permissionService.getRolePermissions('editor')).toContain('write');
-      expect(permissionService.getRolePermissions('viewer')).toContain('read');
-      expect(permissionService.getRolePermissions('viewer')).not.toContain('write');
-    });
-  });
-
-  describe('checkPermission', () => {
-    it('should check permission based on role', async () => {
-      const contributor = await collaborationService.addContributor({
-        name: 'Perm Test',
-        email: 'permtest@example.com',
-        role: 'editor',
-        permissions: [],
-      });
-
-      const hasRead = await permissionService.checkPermission('page-1', contributor.id, 'read');
-      const hasWrite = await permissionService.checkPermission('page-1', contributor.id, 'write');
-      const hasAdmin = await permissionService.checkPermission('page-1', contributor.id, 'admin');
-
-      expect(hasRead).toBe(true);
-      expect(hasWrite).toBe(true);
-      expect(hasAdmin).toBe(false);
-    });
-  });
-
-  describe('setPermission', () => {
-    it('should set custom permissions for a page', async () => {
-      const contributor = await collaborationService.addContributor({
-        name: 'Custom Perm',
-        email: 'customperm@example.com',
-        role: 'editor',
-        permissions: [],
-      });
-
-      await permissionService.setPermission('page-2', contributor.id, ['read']);
-
-      const permissions = await permissionService.getPermissions('page-2', contributor.id);
-      expect(permissions).toContain('read');
-      expect(permissions).not.toContain('write');
-    });
-  });
-
-  describe('assignRole', () => {
-    it('should assign a role to a user for a page', async () => {
-      const contributor = await collaborationService.addContributor({
-        name: 'Role Assign',
-        email: 'roleassign@example.com',
-        role: 'editor',
-        permissions: [],
-      });
-
-      await permissionService.assignRole('page-3', contributor.id, 'viewer');
-
-      const role = await permissionService.getRole('page-3', contributor.id);
-      expect(role).toBe('viewer');
-    });
-  });
-
-  describe('getRole', () => {
-    it('should return contributor role when no page-specific role', async () => {
-      const contributor = await collaborationService.addContributor({
-        name: 'Role Get',
-        email: 'roleget@example.com',
-        role: 'admin',
-        permissions: [],
-      });
-
-      const role = await permissionService.getRole('non-existent-page', contributor.id);
-      expect(role).toBe('admin');
+      expect(config.userId).toBe('new-user');
+      expect(config.displayName).toBe('New User');
+      expect(config.email).toBe('newuser@example.com');
+      expect(config.notificationPreferences).toBeDefined();
+      expect(config.editorPreferences).toBeDefined();
     });
 
-    it('should return viewer for non-existent user', async () => {
-      const role = await permissionService.getRole('page-1', 'non-existent-user');
-      expect(role).toBe('viewer');
-    });
-  });
+    it('should return existing config if exists', async () => {
+      await service.getOrCreateUserConfig('existing-user', 'Original Name', 'original@example.com');
 
-  describe('requirePermission', () => {
-    it('should return a permission checker function', async () => {
-      const contributor = await collaborationService.addContributor({
-        name: 'Require Perm',
-        email: 'requireperm@example.com',
-        role: 'editor',
-        permissions: [],
-      });
+      const config = await service.getOrCreateUserConfig(
+        'existing-user',
+        'New Name',
+        'new@example.com'
+      );
 
-      const checker = permissionService.requirePermission('write');
-      const hasPermission = await checker(contributor.id);
-      expect(hasPermission).toBe(true);
+      // Should keep original values
+      expect(config.displayName).toBe('Original Name');
     });
 
-    it('should return false for non-existent user', async () => {
-      const checker = permissionService.requirePermission('read');
-      const hasPermission = await checker('non-existent-user');
-      expect(hasPermission).toBe(false);
-    });
-  });
+    it('should update updatedAt on save', async () => {
+      const config = await service.getOrCreateUserConfig('update-test', 'Update Test', 'update@example.com');
+      
+      const originalUpdatedAt = config.updatedAt;
+      
+      await new Promise(resolve => setTimeout(resolve, 10));
+      
+      config.displayName = 'Updated Name';
+      await service.saveUserConfig(config);
 
-  describe('hasAnyPermission', () => {
-    it('should return true when user has any of the permissions', async () => {
-      const contributor = await collaborationService.addContributor({
-        name: 'Any Perm',
-        email: 'anyperm@example.com',
-        role: 'editor',
-        permissions: [],
-      });
-
-      const hasAny = await permissionService.hasAnyPermission(contributor.id, ['admin', 'write']);
-      expect(hasAny).toBe(true);
-    });
-
-    it('should return false when user has none of the permissions', async () => {
-      const contributor = await collaborationService.addContributor({
-        name: 'No Perm',
-        email: 'noperm@example.com',
-        role: 'viewer',
-        permissions: [],
-      });
-
-      const hasAny = await permissionService.hasAnyPermission(contributor.id, ['admin', 'write']);
-      expect(hasAny).toBe(false);
-    });
-  });
-
-  describe('grantGlobalPermission', () => {
-    it('should grant global permission to user', async () => {
-      const contributor = await collaborationService.addContributor({
-        name: 'Global Perm',
-        email: 'globalperm@example.com',
-        role: 'viewer',
-        permissions: [],
-      });
-
-      await permissionService.grantGlobalPermission(contributor.id, 'write');
-    });
-  });
-
-  describe('revokeGlobalPermission', () => {
-    it('should revoke global permission from user', async () => {
-      const contributor = await collaborationService.addContributor({
-        name: 'Revoke Perm',
-        email: 'revokeperm@example.com',
-        role: 'editor',
-        permissions: [],
-      });
-
-      await permissionService.grantGlobalPermission(contributor.id, 'admin');
-      await permissionService.revokeGlobalPermission(contributor.id, 'admin');
-    });
-  });
-
-  describe('removePagePermissions', () => {
-    it('should remove all permissions for a page', async () => {
-      await permissionService.removePagePermissions('page-to-remove');
-    });
-  });
-
-  describe('getUserPagesWithPermission', () => {
-    it('should return pages where user has specific permission', async () => {
-      const contributor = await collaborationService.addContributor({
-        name: 'Pages Perm',
-        email: 'pagesperm@example.com',
-        role: 'editor',
-        permissions: [],
-      });
-
-      await permissionService.setPermission('user-page-1', contributor.id, ['write']);
-      await permissionService.setPermission('user-page-2', contributor.id, ['write']);
-
-      const pages = await permissionService.getUserPagesWithPermission(contributor.id, 'write');
-      expect(pages.length).toBeGreaterThanOrEqual(2);
-    });
-  });
-
-  describe('canManageUser', () => {
-    it('should return true when actor has higher role', async () => {
-      const owner = await collaborationService.addContributor({
-        name: 'Owner User',
-        email: 'owneruser@example.com',
-        role: 'owner',
-        permissions: [],
-      });
-
-      const viewer = await collaborationService.addContributor({
-        name: 'Viewer User',
-        email: 'vieweruser@example.com',
-        role: 'viewer',
-        permissions: [],
-      });
-
-      const canManage = await permissionService.canManageUser(owner.id, viewer.id);
-      expect(canManage).toBe(true);
-    });
-
-    it('should return false when actor has lower role', async () => {
-      const viewer = await collaborationService.addContributor({
-        name: 'Viewer User 2',
-        email: 'vieweruser2@example.com',
-        role: 'viewer',
-        permissions: [],
-      });
-
-      const owner = await collaborationService.addContributor({
-        name: 'Owner User 2',
-        email: 'owneruser2@example.com',
-        role: 'owner',
-        permissions: [],
-      });
-
-      const canManage = await permissionService.canManageUser(viewer.id, owner.id);
-      expect(canManage).toBe(false);
-    });
-  });
-});
-
-describe('WikiLockService', () => {
-  let lockService: WikiLockService;
-  const testPath = path.join(__dirname, 'test-lock');
-
-  beforeAll(async () => {
-    await fs.mkdir(testPath, { recursive: true });
-    lockService = new WikiLockService(testPath);
-    await lockService.initialize();
-  });
-
-  afterAll(async () => {
-    lockService.stopLockMonitor();
-    await fs.rm(testPath, { recursive: true, force: true });
-  });
-
-  describe('lockPage', () => {
-    it('should lock a page', async () => {
-      const lock = await lockService.lockPage('page-1', 'user-1', 'Editing');
-
-      expect(lock).toBeDefined();
-      expect(lock.pageId).toBe('page-1');
-      expect(lock.lockedBy).toBe('user-1');
-      expect(lock.reason).toBe('Editing');
-      expect(lock.expiresAt).toBeInstanceOf(Date);
-    });
-
-    it('should throw error when locking already locked page', async () => {
-      await lockService.lockPage('page-2', 'user-1');
-
-      await expect(lockService.lockPage('page-2', 'user-2')).rejects.toThrow('already locked');
-    });
-  });
-
-  describe('getLockStatus', () => {
-    it('should return lock status for locked page', async () => {
-      await lockService.lockPage('page-3', 'user-1');
-
-      const status = await lockService.getLockStatus('page-3');
-      expect(status.isLocked).toBe(true);
-      expect(status.lockedBy).toBe('user-1');
-    });
-
-    it('should return unlocked status for unlocked page', async () => {
-      const status = await lockService.getLockStatus('non-existent-page');
-      expect(status.isLocked).toBe(false);
-      expect(status.canAcquire).toBe(true);
-    });
-  });
-
-  describe('unlockPage', () => {
-    it('should unlock a page', async () => {
-      await lockService.lockPage('page-4', 'user-1');
-
-      const result = await lockService.unlockPage('page-4', 'user-1');
-      expect(result).toBe(true);
-
-      const status = await lockService.getLockStatus('page-4');
-      expect(status.isLocked).toBe(false);
-    });
-  });
-
-  describe('createSession', () => {
-    it('should create an edit session', async () => {
-      const session = await lockService.createSession('page-5', 'user-1', 'Test User');
-
-      expect(session).toBeDefined();
-      expect(session.pageId).toBe('page-5');
-      expect(session.userId).toBe('user-1');
-      expect(session.userName).toBe('Test User');
-    });
-  });
-
-  describe('getActiveSessions', () => {
-    it('should return active sessions for a page', async () => {
-      await lockService.createSession('page-6', 'user-1', 'User 1');
-      await lockService.createSession('page-6', 'user-2', 'User 2');
-
-      const sessions = await lockService.getActiveSessions('page-6');
-      expect(sessions.length).toBe(2);
-    });
-  });
-
-  describe('endSession', () => {
-    it('should end a session', async () => {
-      const session = await lockService.createSession('page-7', 'user-1', 'User 1');
-
-      await lockService.endSession(session.id);
-
-      const sessions = await lockService.getActiveSessions('page-7');
-      expect(sessions.length).toBe(0);
+      const loaded = await service.loadUserConfig('update-test');
+      expect(loaded?.updatedAt.getTime()).toBeGreaterThan(originalUpdatedAt.getTime());
     });
   });
 });

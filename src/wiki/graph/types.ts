@@ -1,4 +1,4 @@
-import { ParsedFile, SymbolKind } from '../../types';
+import { ParsedFile } from '../../types';
 import { ArchitectureReport } from '../../architecture/types';
 
 export type GraphType = 

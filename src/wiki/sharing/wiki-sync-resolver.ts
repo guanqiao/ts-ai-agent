@@ -1,3 +1,5 @@
+import * as path from 'path';
+import * as fs from 'fs';
 import {
   Conflict,
   ConflictResolution,
@@ -306,13 +308,24 @@ export class WikiSyncResolver {
   }
 
   suggestResolution(conflict: Conflict): ResolutionStrategy {
-    const conflictType = this.detectConflictType(conflict);
-
-    if (conflictType === 'requires-manual') {
+    // 首先检查冲突类型
+    if (conflict.type === 'binary' || conflict.type === 'delete-modify') {
       return 'manual';
     }
 
-    // Check if one version is clearly better (more content, more recent)
+    // 检查时间戳
+    const localTime = conflict.localVersion.timestamp.getTime();
+    const remoteTime = conflict.remoteVersion.timestamp.getTime();
+
+    if (localTime > remoteTime) {
+      return 'keep-local';
+    }
+
+    if (remoteTime > localTime) {
+      return 'keep-remote';
+    }
+
+    // 检查内容长度差异
     const localLength = conflict.localVersion.content.length;
     const remoteLength = conflict.remoteVersion.content.length;
 
@@ -324,8 +337,13 @@ export class WikiSyncResolver {
       return 'keep-local';
     }
 
-    // Try auto-merge
-    return 'merge';
+    // 检查是否可以自动合并
+    const conflictType = this.detectConflictType(conflict);
+    if (conflictType === 'resolvable') {
+      return 'merge';
+    }
+
+    return 'manual';
   }
 
   async batchResolve(
@@ -341,5 +359,105 @@ export class WikiSyncResolver {
     }
 
     return resolutions;
+  }
+
+  // 新增方法以满足测试需求
+
+  async autoResolve(conflict: Conflict, strategy: ResolutionStrategy): Promise<Conflict> {
+    const resolution = await this.resolveConflict(conflict, strategy);
+    
+    return {
+      ...conflict,
+      resolved: true,
+      resolution,
+    };
+  }
+
+  async manualResolve(conflict: Conflict, content: string): Promise<Conflict> {
+    if (!content || content.trim() === '') {
+      throw new Error('Manual resolution content cannot be empty');
+    }
+
+    const resolution: ConflictResolution = {
+      strategy: 'manual',
+      resolvedContent: content,
+      resolvedBy: 'user',
+      resolvedAt: new Date(),
+    };
+
+    return {
+      ...conflict,
+      resolved: true,
+      resolution,
+    };
+  }
+
+  async applyResolution(
+    projectPath: string,
+    conflict: Conflict,
+    resolution: ConflictResolution
+  ): Promise<void> {
+    if (!resolution.resolvedContent) {
+      throw new Error('Resolution content is required');
+    }
+
+    const filePath = path.join(projectPath, conflict.filePath);
+    
+    // 检查文件是否存在
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`);
+    }
+
+    fs.writeFileSync(filePath, resolution.resolvedContent, 'utf-8');
+  }
+
+  async resolveBatch(
+    conflicts: Conflict[],
+    resolutions: Map<string, ConflictResolution>
+  ): Promise<Conflict[]> {
+    const results: Conflict[] = [];
+
+    for (const conflict of conflicts) {
+      const resolution = resolutions.get(conflict.id);
+      
+      if (resolution) {
+        results.push({
+          ...conflict,
+          resolved: true,
+          resolution,
+        });
+      } else {
+        // 没有提供 resolution 的冲突保持未解决状态
+        results.push({
+          ...conflict,
+          resolved: false,
+        });
+      }
+    }
+
+    return results;
+  }
+
+  generateConflictReport(conflicts: Conflict[]): string {
+    if (conflicts.length === 0) {
+      return 'No conflicts to report.';
+    }
+
+    const lines: string[] = [];
+    lines.push(`# Conflict Report`);
+    lines.push(`Total conflicts: ${conflicts.length}`);
+    lines.push('');
+
+    for (const conflict of conflicts) {
+      lines.push(`## ${conflict.filePath}`);
+      lines.push(`- Type: ${conflict.type}`);
+      lines.push(`- Severity: ${conflict.severity}`);
+      lines.push(`- Suggested Resolution: ${conflict.suggestedResolution}`);
+      lines.push(`- Local Author: ${conflict.localVersion.author}`);
+      lines.push(`- Remote Author: ${conflict.remoteVersion.author}`);
+      lines.push('');
+    }
+
+    return lines.join('\n');
   }
 }

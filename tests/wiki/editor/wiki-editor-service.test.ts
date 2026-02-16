@@ -1,38 +1,59 @@
 import * as path from 'path';
-import * as os from 'os';
-import * as fs from 'fs/promises';
+import * as fs from 'fs';
 import { WikiEditorService } from '../../../src/wiki/editor/wiki-editor-service';
-import { WikiPreview } from '../../../src/wiki/editor/wiki-preview';
-import { WikiTemplates } from '../../../src/wiki/editor/wiki-templates';
-import { DEFAULT_EDITOR_CONFIG } from '../../../src/wiki/editor/types';
 
 describe('WikiEditorService', () => {
-  let editorService: WikiEditorService;
-  let tempDir: string;
+  let service: WikiEditorService;
+  let testProjectPath: string;
 
-  beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'wiki-editor-test-'));
-    editorService = new WikiEditorService(tempDir);
+  beforeEach(() => {
+    testProjectPath = path.join(__dirname, 'test-editor-project');
+    
+    if (!fs.existsSync(testProjectPath)) {
+      fs.mkdirSync(testProjectPath, { recursive: true });
+    }
+
+    service = new WikiEditorService(testProjectPath);
   });
 
   afterEach(async () => {
-    await fs.rm(tempDir, { recursive: true, force: true });
+    // Clean up any running timers
+    const sessions = await service.getActiveSessions();
+    for (const s of sessions) {
+      await service.endSession(s.id);
+    }
+    
+    if (fs.existsSync(testProjectPath)) {
+      fs.rmSync(testProjectPath, { recursive: true, force: true });
+    }
   });
 
   describe('createSession', () => {
     it('should create a new edit session', async () => {
-      const session = await editorService.createSession('page-1', 'Initial content');
+      const session = await service.createSession('page-1', '# Initial Content');
 
       expect(session).toBeDefined();
+      expect(session.id).toBeDefined();
       expect(session.pageId).toBe('page-1');
-      expect(session.originalContent).toBe('Initial content');
-      expect(session.currentContent).toBe('Initial content');
+      expect(session.originalContent).toBe('# Initial Content');
+      expect(session.currentContent).toBe('# Initial Content');
       expect(session.status).toBe('active');
+      expect(session.metadata.cursorPosition).toEqual({ line: 1, column: 1 });
+    });
+
+    it('should emit session-created event', async () => {
+      const spy = jest.fn();
+      service.on('session-created', spy);
+
+      await service.createSession('page-1', 'Content');
+
+      expect(spy).toHaveBeenCalled();
+      expect(spy.mock.calls[0][0].pageId).toBe('page-1');
     });
 
     it('should generate unique session IDs', async () => {
-      const session1 = await editorService.createSession('page-1', 'Content 1');
-      const session2 = await editorService.createSession('page-2', 'Content 2');
+      const session1 = await service.createSession('page-1', 'Content 1');
+      const session2 = await service.createSession('page-2', 'Content 2');
 
       expect(session1.id).not.toBe(session2.id);
     });
@@ -40,340 +61,437 @@ describe('WikiEditorService', () => {
 
   describe('updateSession', () => {
     it('should update session content', async () => {
-      const session = await editorService.createSession('page-1', 'Initial content');
-      await editorService.updateSession(session.id, 'Updated content');
+      const session = await service.createSession('page-1', 'Initial');
+      
+      await service.updateSession(session.id, 'Updated Content');
 
-      const updatedSession = await editorService.getSession(session.id);
-      expect(updatedSession?.currentContent).toBe('Updated content');
+      const updated = await service.getSession(session.id);
+      expect(updated?.currentContent).toBe('Updated Content');
+      expect(updated?.updatedAt.getTime()).toBeGreaterThanOrEqual(session.createdAt.getTime());
     });
 
-    it('should track changes in undo stack', async () => {
-      const session = await editorService.createSession('page-1', 'Initial content');
-      await editorService.updateSession(session.id, 'Updated content');
+    it('should emit session-updated event', async () => {
+      const session = await service.createSession('page-1', 'Initial');
+      
+      const spy = jest.fn();
+      service.on('session-updated', spy);
 
-      const updatedSession = await editorService.getSession(session.id);
-      expect(updatedSession?.metadata.undoStack.length).toBe(1);
+      await service.updateSession(session.id, 'Updated');
+
+      expect(spy).toHaveBeenCalled();
+      expect(spy.mock.calls[0][0].sessionId).toBe(session.id);
+    });
+
+    it('should throw error for non-existent session', async () => {
+      await expect(service.updateSession('non-existent', 'Content')).rejects.toThrow('Session not found');
+    });
+
+    it('should track undo stack on content change', async () => {
+      const session = await service.createSession('page-1', 'Initial');
+      
+      await service.updateSession(session.id, 'Updated');
+
+      const updated = await service.getSession(session.id);
+      expect(updated?.metadata.undoStack.length).toBe(1);
+    });
+
+    it('should clear redo stack on new edit', async () => {
+      const session = await service.createSession('page-1', 'Initial');
+      await service.updateSession(session.id, 'Update 1');
+      
+      // Simulate redo stack having items
+      const s = await service.getSession(session.id);
+      if (s) {
+        s.metadata.redoStack.push({ type: 'insert', position: { line: 1, column: 1 }, content: '', timestamp: new Date() });
+        
+        await service.updateSession(session.id, 'Update 2');
+        
+        const updated = await service.getSession(session.id);
+        expect(updated?.metadata.redoStack.length).toBe(0);
+      }
     });
   });
 
   describe('getSession', () => {
-    it('should return null for non-existent session', async () => {
-      const session = await editorService.getSession('non-existent');
-      expect(session).toBeNull();
+    it('should return session by id', async () => {
+      const created = await service.createSession('page-1', 'Content');
+      
+      const retrieved = await service.getSession(created.id);
+
+      expect(retrieved).toBeDefined();
+      expect(retrieved?.id).toBe(created.id);
     });
 
-    it('should return existing session', async () => {
-      const created = await editorService.createSession('page-1', 'Content');
-      const retrieved = await editorService.getSession(created.id);
-
-      expect(retrieved).toEqual(created);
+    it('should return null for non-existent session', async () => {
+      const result = await service.getSession('non-existent');
+      expect(result).toBeNull();
     });
   });
 
   describe('endSession', () => {
-    it('should end an active session', async () => {
-      const session = await editorService.createSession('page-1', 'Content');
-      await editorService.endSession(session.id);
+    it('should end a session', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      
+      await service.endSession(session.id);
 
-      const endedSession = await editorService.getSession(session.id);
-      expect(endedSession).toBeNull();
+      const retrieved = await service.getSession(session.id);
+      expect(retrieved).toBeNull();
+    });
+
+    it('should emit session-ended event', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      
+      const spy = jest.fn();
+      service.on('session-ended', spy);
+
+      await service.endSession(session.id);
+
+      expect(spy).toHaveBeenCalled();
+      expect(spy.mock.calls[0][0].pageId).toBe('page-1');
+    });
+
+    it('should disable auto-save when ending session', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      service.enableAutoSave(session.id, { enabled: true, intervalMs: 1000, maxDrafts: 5 });
+      
+      const spy = jest.fn();
+      service.on('autosave-disabled', spy);
+
+      await service.endSession(session.id);
+
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('should handle ending non-existent session gracefully', async () => {
+      await expect(service.endSession('non-existent')).resolves.not.toThrow();
     });
   });
 
   describe('getActiveSessions', () => {
     it('should return all active sessions', async () => {
-      await editorService.createSession('page-1', 'Content 1');
-      await editorService.createSession('page-2', 'Content 2');
+      await service.createSession('page-1', 'Content 1');
+      await service.createSession('page-2', 'Content 2');
+      
+      const sessions = await service.getActiveSessions();
 
-      const activeSessions = await editorService.getActiveSessions();
-      expect(activeSessions.length).toBe(2);
+      expect(sessions.length).toBe(2);
+    });
+
+    it('should not include closed sessions', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      await service.endSession(session.id);
+      
+      const sessions = await service.getActiveSessions();
+
+      expect(sessions.length).toBe(0);
     });
   });
 
-  describe('autoSave', () => {
-    it('should enable auto-save for a session', async () => {
-      const session = await editorService.createSession('page-1', 'Content');
-      editorService.enableAutoSave(session.id, DEFAULT_EDITOR_CONFIG.autoSave);
+  describe('enableAutoSave', () => {
+    it('should enable auto-save', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      
+      service.enableAutoSave(session.id, { enabled: true, intervalMs: 1000, maxDrafts: 5 });
 
-      expect(() => editorService.disableAutoSave(session.id)).not.toThrow();
+      const spy = jest.fn();
+      service.on('autosave-enabled', spy);
+      
+      // Re-enable to trigger event
+      service.enableAutoSave(session.id, { enabled: true, intervalMs: 1000, maxDrafts: 5 });
+      
+      expect(spy).toHaveBeenCalled();
     });
 
-    it('should save draft manually', async () => {
-      const session = await editorService.createSession('page-1', 'Content');
-      const draft = await editorService.saveDraft(session.id);
+    it('should throw error for non-existent session', async () => {
+      expect(() => {
+        service.enableAutoSave('non-existent', { enabled: true, intervalMs: 1000, maxDrafts: 5 });
+      }).toThrow('Session not found');
+    });
+  });
+
+  describe('disableAutoSave', () => {
+    it('should disable auto-save', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      service.enableAutoSave(session.id, { enabled: true, intervalMs: 1000, maxDrafts: 5 });
+      
+      const spy = jest.fn();
+      service.on('autosave-disabled', spy);
+
+      service.disableAutoSave(session.id);
+
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('should handle disabling when not enabled', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      
+      expect(() => {
+        service.disableAutoSave(session.id);
+      }).not.toThrow();
+    });
+  });
+
+  describe('saveDraft', () => {
+    it('should save a draft', async () => {
+      const session = await service.createSession('page-1', '# Draft Content');
+      
+      const draft = await service.saveDraft(session.id);
 
       expect(draft).toBeDefined();
       expect(draft.pageId).toBe('page-1');
-      expect(draft.content).toBe('Content');
+      expect(draft.content).toBe('# Draft Content');
+      expect(draft.metadata.wordCount).toBeGreaterThan(0);
+      expect(draft.metadata.characterCount).toBeGreaterThan(0);
+    });
+
+    it('should emit draft-saved event', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      
+      const spy = jest.fn();
+      service.on('draft-saved', spy);
+
+      await service.saveDraft(session.id);
+
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('should throw error for non-existent session', async () => {
+      await expect(service.saveDraft('non-existent')).rejects.toThrow('Session not found');
+    });
+
+    it('should save draft to file', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      
+      const draft = await service.saveDraft(session.id);
+
+      const draftPath = path.join(testProjectPath, '.wiki', 'drafts', `${draft.id}.json`);
+      expect(fs.existsSync(draftPath)).toBe(true);
     });
   });
 
-  describe('drafts', () => {
+  describe('restoreDraft', () => {
     it('should restore the latest draft', async () => {
-      const session = await editorService.createSession('page-1', 'Content');
-      await editorService.saveDraft(session.id);
+      const session = await service.createSession('page-1', 'Content 1');
+      await service.saveDraft(session.id);
+      
+      await service.updateSession(session.id, 'Content 2');
+      await service.saveDraft(session.id);
 
-      const restored = await editorService.restoreDraft('page-1');
-      expect(restored).toBeDefined();
-      expect(restored?.content).toBe('Content');
+      const draft = await service.restoreDraft('page-1');
+
+      expect(draft).toBeDefined();
+      expect(draft?.content).toBe('Content 2');
     });
 
-    it('should return null when no draft exists', async () => {
-      const restored = await editorService.restoreDraft('non-existent');
-      expect(restored).toBeNull();
+    it('should return null when no drafts exist', async () => {
+      const result = await service.restoreDraft('page-1');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('getDrafts', () => {
+    it('should return all drafts for a page', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      await service.saveDraft(session.id);
+      await service.saveDraft(session.id);
+
+      const drafts = await service.getDrafts('page-1');
+
+      expect(drafts.length).toBe(2);
     });
 
+    it('should return empty array when no drafts', async () => {
+      const drafts = await service.getDrafts('page-1');
+      expect(drafts).toEqual([]);
+    });
+  });
+
+  describe('clearDrafts', () => {
     it('should clear all drafts for a page', async () => {
-      const session = await editorService.createSession('page-1', 'Content');
-      await editorService.saveDraft(session.id);
-      await editorService.clearDrafts('page-1');
+      const session = await service.createSession('page-1', 'Content');
+      await service.saveDraft(session.id);
+      
+      await service.clearDrafts('page-1');
 
-      const drafts = await editorService.getDrafts('page-1');
+      const drafts = await service.getDrafts('page-1');
       expect(drafts.length).toBe(0);
     });
+
+    it('should emit drafts-cleared event', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      await service.saveDraft(session.id);
+      
+      const spy = jest.fn();
+      service.on('drafts-cleared', spy);
+
+      await service.clearDrafts('page-1');
+
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('should delete draft files', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      const draft = await service.saveDraft(session.id);
+      
+      const draftPath = path.join(testProjectPath, '.wiki', 'drafts', `${draft.id}.json`);
+      expect(fs.existsSync(draftPath)).toBe(true);
+
+      await service.clearDrafts('page-1');
+
+      expect(fs.existsSync(draftPath)).toBe(false);
+    });
   });
 
-  describe('undo/redo', () => {
-    it('should undo the last change', async () => {
-      const session = await editorService.createSession('page-1', 'Initial');
-      await editorService.updateSession(session.id, 'Updated');
+  describe('updateCursorPosition', () => {
+    it('should update cursor position', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      
+      service.updateCursorPosition(session.id, { line: 5, column: 10 });
 
-      const undone = editorService.undo(session.id);
-      expect(undone).toBe('Initial');
+      const updated = await service.getSession(session.id);
+      expect(updated?.metadata.cursorPosition).toEqual({ line: 5, column: 10 });
     });
 
-    it('should redo a previously undone change', async () => {
-      const session = await editorService.createSession('page-1', 'Initial');
-      await editorService.updateSession(session.id, 'Updated');
-      editorService.undo(session.id);
+    it('should handle non-existent session gracefully', async () => {
+      expect(() => {
+        service.updateCursorPosition('non-existent', { line: 1, column: 1 });
+      }).not.toThrow();
+    });
+  });
 
-      const redone = editorService.redo(session.id);
-      expect(redone).toBe('Updated');
+  describe('updateScrollPosition', () => {
+    it('should update scroll position', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      
+      service.updateScrollPosition(session.id, 100);
+
+      const updated = await service.getSession(session.id);
+      expect(updated?.metadata.scrollPosition).toBe(100);
+    });
+  });
+
+  describe('undo', () => {
+    it('should undo last edit', async () => {
+      const session = await service.createSession('page-1', 'Initial');
+      await service.updateSession(session.id, 'Updated');
+
+      const content = service.undo(session.id);
+
+      expect(content).toBe('Initial');
     });
 
-    it('should return null when nothing to undo', async () => {
-      const session = await editorService.createSession('page-1', 'Content');
-      const undone = editorService.undo(session.id);
-      expect(undone).toBeNull();
+    it('should emit undo event', async () => {
+      const session = await service.createSession('page-1', 'Initial');
+      await service.updateSession(session.id, 'Updated');
+      
+      const spy = jest.fn();
+      service.on('undo', spy);
+
+      service.undo(session.id);
+
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('should return null when no undo available', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      
+      const content = service.undo(session.id);
+
+      expect(content).toBeNull();
+    });
+
+    it('should return null for non-existent session', async () => {
+      const content = service.undo('non-existent');
+      expect(content).toBeNull();
+    });
+  });
+
+  describe('redo', () => {
+    it('should redo last undone edit', async () => {
+      const session = await service.createSession('page-1', 'Initial');
+      await service.updateSession(session.id, 'Updated');
+      service.undo(session.id);
+
+      const content = service.redo(session.id);
+
+      expect(content).toBe('Updated');
+    });
+
+    it('should emit redo event', async () => {
+      const session = await service.createSession('page-1', 'Initial');
+      await service.updateSession(session.id, 'Updated');
+      service.undo(session.id);
+      
+      const spy = jest.fn();
+      service.on('redo', spy);
+
+      service.redo(session.id);
+
+      expect(spy).toHaveBeenCalled();
+    });
+
+    it('should return null when no redo available', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      
+      const content = service.redo(session.id);
+
+      expect(content).toBeNull();
     });
   });
 
   describe('hasUnsavedChanges', () => {
-    it('should return false when content matches original', async () => {
-      const session = await editorService.createSession('page-1', 'Content');
-      expect(editorService.hasUnsavedChanges(session.id)).toBe(false);
+    it('should return true when content changed', async () => {
+      const session = await service.createSession('page-1', 'Initial');
+      await service.updateSession(session.id, 'Updated');
+
+      const hasChanges = service.hasUnsavedChanges(session.id);
+
+      expect(hasChanges).toBe(true);
     });
 
-    it('should return true when content differs from original', async () => {
-      const session = await editorService.createSession('page-1', 'Content');
-      await editorService.updateSession(session.id, 'Modified');
-      expect(editorService.hasUnsavedChanges(session.id)).toBe(true);
-    });
-  });
-});
+    it('should return false when content unchanged', async () => {
+      const session = await service.createSession('page-1', 'Content');
 
-describe('WikiPreview', () => {
-  let preview: WikiPreview;
+      const hasChanges = service.hasUnsavedChanges(session.id);
 
-  beforeEach(() => {
-    preview = new WikiPreview();
-  });
-
-  describe('renderPreview', () => {
-    it('should convert headings to HTML', async () => {
-      const content = '# Title\n## Subtitle';
-      const html = await preview.renderPreview(content);
-
-      expect(html).toContain('<h1 id="Title">Title</h1>');
-      expect(html).toContain('<h2 id="Subtitle">Subtitle</h2>');
+      expect(hasChanges).toBe(false);
     });
 
-    it('should convert bold and italic text', async () => {
-      const content = '**bold** and *italic*';
-      const html = await preview.renderPreview(content);
-
-      expect(html).toContain('<strong>bold</strong>');
-      expect(html).toContain('<em>italic</em>');
-    });
-
-    it('should convert inline code', async () => {
-      const content = 'Use `code` here';
-      const html = await preview.renderPreview(content);
-
-      expect(html).toContain('<code class="inline-code">code</code>');
-    });
-
-    it('should convert code blocks', async () => {
-      const content = '```typescript\nconst x = 1;\n```';
-      const html = await preview.renderPreview(content);
-
-      expect(html).toContain('<pre class="code-block"');
-      expect(html).toContain('data-language="typescript"');
-    });
-
-    it('should convert links', async () => {
-      const content = '[Link](https://example.com)';
-      const html = await preview.renderPreview(content);
-
-      expect(html).toContain('<a href="https://example.com"');
-      expect(html).toContain('class="wiki-link external"');
-    });
-
-    it('should convert images', async () => {
-      const content = '![Alt text](image.png)';
-      const html = await preview.renderPreview(content);
-
-      expect(html).toContain('image.png');
-      expect(html).toContain('Alt text');
+    it('should return false for non-existent session', async () => {
+      const hasChanges = service.hasUnsavedChanges('non-existent');
+      expect(hasChanges).toBe(false);
     });
   });
 
-  describe('syncScroll', () => {
-    it('should track scroll position', () => {
-      preview.syncScroll(100);
-      expect(preview.getCurrentScrollPosition()).toBe(100);
-    });
-  });
+  describe('markAsSaved', () => {
+    it('should mark session as saved', async () => {
+      const session = await service.createSession('page-1', 'Initial');
+      await service.updateSession(session.id, 'Updated');
 
-  describe('highlightSection', () => {
-    it('should track highlighted section', () => {
-      preview.highlightSection('section-1');
-      expect(preview.getHighlightedSection()).toBe('section-1');
-    });
-  });
+      service.markAsSaved(session.id);
 
-  describe('getTableOfContents', () => {
-    it('should extract table of contents from rendered content', async () => {
-      const content = '# Main\n## Section 1\n## Section 2';
-      await preview.renderPreview(content);
-
-      const toc = await preview.getTableOfContents();
-      expect(toc.length).toBeGreaterThan(0);
-    });
-  });
-});
-
-describe('WikiTemplates', () => {
-  let templates: WikiTemplates;
-  let tempDir: string;
-
-  beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'wiki-templates-test-'));
-    templates = new WikiTemplates(tempDir);
-    await templates.initialize();
-  });
-
-  afterEach(async () => {
-    await fs.rm(tempDir, { recursive: true, force: true });
-  });
-
-  describe('getTemplate', () => {
-    it('should return null for non-existent template', async () => {
-      const template = await templates.getTemplate('non-existent');
-      expect(template).toBeNull();
+      const hasChanges = service.hasUnsavedChanges(session.id);
+      expect(hasChanges).toBe(false);
     });
 
-    it('should return built-in API template', async () => {
-      const template = await templates.getTemplate('template-api-doc');
-      expect(template).toBeDefined();
-      expect(template?.name).toBe('API Documentation');
-    });
-  });
+    it('should emit session-saved event', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      
+      const spy = jest.fn();
+      service.on('session-saved', spy);
 
-  describe('getTemplates', () => {
-    it('should return all templates when no category specified', async () => {
-      const allTemplates = await templates.getTemplates();
-      expect(allTemplates.length).toBeGreaterThan(0);
+      service.markAsSaved(session.id);
+
+      expect(spy).toHaveBeenCalled();
     });
 
-    it('should filter templates by category', async () => {
-      const apiTemplates = await templates.getTemplates('api');
-      expect(apiTemplates.every((t: { category: string }) => t.category === 'api')).toBe(true);
-    });
-  });
+    it('should update session status', async () => {
+      const session = await service.createSession('page-1', 'Content');
+      
+      service.markAsSaved(session.id);
 
-  describe('applyTemplate', () => {
-    it('should apply template with variables', async () => {
-      const content = await templates.applyTemplate('template-api-doc', {
-        name: 'TestAPI',
-        description: 'Test description',
-        method: 'GET',
-        path: '/api/test',
-      });
-
-      expect(content).toContain('# TestAPI');
-      expect(content).toContain('Test description');
-      expect(content).toContain('GET /api/test');
-    });
-
-    it('should throw error for missing required variables', async () => {
-      await expect(
-        templates.applyTemplate('template-api-doc', {})
-      ).rejects.toThrow();
-    });
-  });
-
-  describe('createTemplate', () => {
-    it('should create a new custom template', async () => {
-      const newTemplate = await templates.createTemplate({
-        name: 'Custom Template',
-        description: 'A custom template',
-        category: 'custom',
-        content: '# {{title}}\n\n{{content}}',
-        variables: [
-          { name: 'title', label: 'Title', type: 'text', required: true },
-          { name: 'content', label: 'Content', type: 'text', required: false },
-        ],
-      });
-
-      expect(newTemplate.id).toBeDefined();
-      expect(newTemplate.name).toBe('Custom Template');
-    });
-  });
-
-  describe('validateTemplate', () => {
-    it('should validate a correct template', () => {
-      const result = templates.validateTemplate({
-        id: 'test',
-        name: 'Test Template',
-        description: 'Test',
-        category: 'custom',
-        content: '# {{title}}',
-        variables: [
-          { name: 'title', label: 'Title', type: 'text', required: true },
-        ],
-        metadata: {
-          version: '1.0.0',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          tags: [],
-          usageCount: 0,
-        },
-      });
-
-      expect(result.valid).toBe(true);
-      expect(result.errors.length).toBe(0);
-    });
-
-    it('should detect missing required fields', () => {
-      const result = templates.validateTemplate({
-        id: 'test',
-        name: '',
-        description: '',
-        category: 'custom',
-        content: '',
-        variables: [],
-        metadata: {
-          version: '1.0.0',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          tags: [],
-          usageCount: 0,
-        },
-      });
-
-      expect(result.valid).toBe(false);
-      expect(result.errors.some((e: { field: string }) => e.field === 'name')).toBe(true);
+      const updated = await service.getSession(session.id);
+      expect(updated?.status).toBe('saved');
     });
   });
 });

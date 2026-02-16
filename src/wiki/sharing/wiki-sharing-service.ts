@@ -148,10 +148,9 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
   }
 
   async getStatus(): Promise<ShareStatus> {
-    const shareDir = this.getShareDir();
-    const isShared = fs.existsSync(shareDir);
-    
     const manifest = await this.loadManifest();
+    const isShared = manifest !== null && manifest.files.length > 0;
+    
     const remoteStatus = await this.getRemoteStatus();
     const conflicts = Array.from(this.conflicts.values());
 
@@ -192,6 +191,28 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
   }
 
   async pullFromRemote(): Promise<SyncResult> {
+    if (!this.isConfigured()) {
+      return this.createSyncResult(
+        false,
+        'Pull failed: sharing not configured',
+        'pull',
+        0,
+        [],
+        [{ code: 'NOT_CONFIGURED', message: 'Sharing not configured', retryable: false }]
+      );
+    }
+
+    if (!this.config?.syncWithRemote) {
+      return this.createSyncResult(
+        false,
+        'Pull failed: remote sync not enabled',
+        'pull',
+        0,
+        [],
+        [{ code: 'SYNC_NOT_ENABLED', message: 'Remote sync not enabled', retryable: false }]
+      );
+    }
+
     const errors: ShareSyncError[] = [];
     let filesSynced = 0;
 
@@ -230,6 +251,17 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
   }
 
   async pushToRemote(): Promise<SyncResult> {
+    if (!this.isConfigured()) {
+      return this.createSyncResult(
+        false,
+        'Push failed: sharing not configured',
+        'push',
+        0,
+        [],
+        [{ code: 'NOT_CONFIGURED', message: 'Sharing not configured', retryable: false }]
+      );
+    }
+
     const errors: ShareSyncError[] = [];
     let filesSynced = 0;
 
@@ -301,7 +333,7 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
   }
 
   isConfigured(): boolean {
-    return this.config !== null && this.config.enabled;
+    return this.config !== null;
   }
 
   isEnabled(): boolean {

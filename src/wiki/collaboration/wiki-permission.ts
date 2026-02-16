@@ -190,7 +190,10 @@ export class WikiPermissionService implements IWikiPermission {
     }
 
     const userPermissions = ROLE_PERMISSIONS[contributor.role];
-    return permissions.some((p) => userPermissions.includes(p));
+    const globalPerms = this.globalPermissions.get(userId) || [];
+    const allPermissions = [...userPermissions, ...globalPerms];
+    
+    return permissions.some((p) => allPermissions.includes(p));
   }
 
   async grantGlobalPermission(userId: string, permission: WikiPermission): Promise<void> {

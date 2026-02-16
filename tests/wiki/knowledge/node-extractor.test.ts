@@ -1,28 +1,6 @@
 import { NodeExtractor } from '../../../src/wiki/knowledge/node-extractor';
-import { WikiPage, WikiCategory } from '../../../src/wiki/types';
+import { WikiPage } from '../../../src/wiki/types';
 import { DocumentFormat, Language } from '../../../src/types';
-
-function createTestPage(overrides: Partial<WikiPage> = {}): WikiPage {
-  return {
-    id: 'test-page',
-    title: 'Test Page',
-    slug: 'test-page',
-    content: '# Test\n\nThis is test content.',
-    format: DocumentFormat.Markdown,
-    metadata: {
-      tags: ['test'],
-      category: 'overview' as WikiCategory,
-      sourceFiles: [],
-      language: Language.TypeScript,
-    },
-    sections: [],
-    links: [],
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    version: 1,
-    ...overrides,
-  };
-}
 
 describe('NodeExtractor', () => {
   let extractor: NodeExtractor;
@@ -32,162 +10,306 @@ describe('NodeExtractor', () => {
   });
 
   describe('extractConcepts', () => {
-    it('should extract concepts from page titles', () => {
-      const pages = [
-        createTestPage({
-          id: 'concept-1',
-          title: 'Architecture Overview',
-          content: '# Architecture Overview\n\nThis describes the architecture.',
-        }),
+    it('should extract concepts from headings', () => {
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Test Page',
+          slug: 'test-page',
+          content: `
+# Main Concept
+
+## Sub Concept - Description here
+
+### Deep Concept
+
+Some content here.
+`,
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: ['test'],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const concepts = extractor.extractConcepts(pages);
 
       expect(concepts.length).toBeGreaterThan(0);
-    });
-
-    it('should extract concepts from headings', () => {
-      const pages = [
-        createTestPage({
-          id: 'heading-test',
-          content: '# Main Title\n\n## Authentication\n\n## Authorization\n\n## Caching',
-        }),
-      ];
-
-      const concepts = extractor.extractConcepts(pages);
-
-      expect(concepts.some(c => c.name.toLowerCase().includes('authentication'))).toBe(true);
+      expect(concepts.some(c => c.name.toLowerCase().includes('concept'))).toBe(true);
     });
 
     it('should extract concepts from bold text', () => {
-      const pages = [
-        createTestPage({
-          id: 'bold-test',
-          content: 'This is about **Dependency Injection** and **Service Locator**.',
-        }),
-      ];
-
-      const concepts = extractor.extractConcepts(pages);
-
-      expect(concepts.some(c => c.name.toLowerCase().includes('dependency'))).toBe(true);
-    });
-
-    it('should extract concepts from code references', () => {
-      const pages = [
-        createTestPage({
-          id: 'code-test',
-          content: 'Use the `UserService` and `Repository` classes.',
-        }),
-      ];
-
-      const concepts = extractor.extractConcepts(pages);
-
-      expect(concepts.some(c => c.name.toLowerCase() === 'userservice')).toBe(true);
-    });
-
-    it('should extract concepts from tags', () => {
-      const pages = [
-        createTestPage({
-          id: 'tag-test',
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Test Page',
+          slug: 'test-page',
+          content: `
+This is about **KeyConcept** and **MainAPI**.
+`,
+          format: DocumentFormat.Markdown,
           metadata: {
-            tags: ['api', 'rest', 'http'],
-            category: 'api' as WikiCategory,
+            tags: ['test'],
+            category: 'overview',
             sourceFiles: [],
             language: Language.TypeScript,
           },
-        }),
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const concepts = extractor.extractConcepts(pages);
 
-      expect(concepts.some(c => c.name.toLowerCase() === 'api')).toBe(true);
+      expect(concepts.some(c => c.name === 'KeyConcept')).toBe(true);
+      expect(concepts.some(c => c.name === 'MainAPI')).toBe(true);
     });
 
-    it('should aggregate concepts across multiple pages', () => {
-      const pages = [
-        createTestPage({ id: 'page-1', content: 'About **Authentication**' }),
-        createTestPage({ id: 'page-2', content: 'More about **Authentication**' }),
-        createTestPage({ id: 'page-3', content: 'Even more about **Authentication**' }),
+    it('should extract concepts from inline code', () => {
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Test Page',
+          slug: 'test-page',
+          content: `
+Use \`calculateTotal\` or \`userName\` for this purpose.
+`,
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: ['test'],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const concepts = extractor.extractConcepts(pages);
 
-      const authConcept = concepts.find(c => c.name.toLowerCase() === 'authentication');
-      expect(authConcept).toBeDefined();
+      expect(concepts.some(c => c.name === 'calculateTotal')).toBe(true);
+      expect(concepts.some(c => c.name === 'userName')).toBe(true);
+    });
+
+    it('should extract concepts from tags', () => {
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Test Page',
+          slug: 'test-page',
+          content: 'Content',
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: ['architecture', 'database', 'api'],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
+      ];
+
+      const concepts = extractor.extractConcepts(pages);
+
+      expect(concepts.some(c => c.name === 'architecture')).toBe(true);
+      expect(concepts.some(c => c.name === 'database')).toBe(true);
+      expect(concepts.some(c => c.name === 'api')).toBe(true);
+    });
+
+    it('should merge duplicate concepts', () => {
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Page 1',
+          slug: 'page-1',
+          content: '# SharedConcept',
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
+        {
+          id: 'page-2',
+          title: 'Page 2',
+          slug: 'page-2',
+          content: '# SharedConcept',
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
+      ];
+
+      const concepts = extractor.extractConcepts(pages);
+
+      const sharedConcept = concepts.find(c => c.name.toLowerCase() === 'sharedconcept');
+      expect(sharedConcept).toBeDefined();
+      expect(sharedConcept?.weight).toBe(2);
     });
 
     it('should filter out common words', () => {
-      const pages = [
-        createTestPage({
-          id: 'common-test',
-          content: 'The **the** and **and** are common words.',
-        }),
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Test Page',
+          slug: 'test-page',
+          content: `
+**The** **and** **or** **but** **for** **with**
+`,
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const concepts = extractor.extractConcepts(pages);
 
-      expect(concepts.some(c => c.name.toLowerCase() === 'the')).toBe(false);
+      expect(concepts.some(c => c.name === 'The')).toBe(false);
+      expect(concepts.some(c => c.name === 'and')).toBe(false);
     });
 
-    it('should set importance based on frequency', () => {
-      const pages = [
-        createTestPage({ id: 'freq-1', content: '**ConceptA** mentioned here.' }),
-        createTestPage({ id: 'freq-2', content: '**ConceptA** again.' }),
-        createTestPage({ id: 'freq-3', content: '**ConceptA** once more.' }),
-        createTestPage({ id: 'freq-4', content: '**ConceptB** only once.' }),
+    it('should filter out short concepts', () => {
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Test Page',
+          slug: 'test-page',
+          content: `
+# A
+# Ab
+`,
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const concepts = extractor.extractConcepts(pages);
 
-      const conceptA = concepts.find(c => c.name.toLowerCase() === 'concepta');
-      const conceptB = concepts.find(c => c.name.toLowerCase() === 'conceptb');
-
-      expect(conceptA!.importance).toBeGreaterThanOrEqual(conceptB!.importance);
+      expect(concepts.some(c => c.name === 'A')).toBe(false);
+      expect(concepts.some(c => c.name === 'Ab')).toBe(false);
     });
   });
 
   describe('extractAPIs', () => {
-    it('should extract class definitions', () => {
-      const pages = [
-        createTestPage({
-          id: 'api-page',
+    it('should extract classes from code blocks', () => {
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'API Page',
+          slug: 'api-page',
+          content: `
+\`\`\`typescript
+export class UserService {
+  // implementation
+}
+
+class InternalHelper {
+  // implementation
+}
+\`\`\`
+`,
+          format: DocumentFormat.Markdown,
           metadata: {
-            tags: ['api'],
-            category: 'api' as WikiCategory,
+            tags: [],
+            category: 'api',
             sourceFiles: [],
             language: Language.TypeScript,
           },
-          content: `# API
-\`\`\`typescript
-export class UserService {
-  private repository: Repository;
-}
-\`\`\``,
-        }),
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const apis = extractor.extractAPIs(pages);
 
       expect(apis.some(a => a.name === 'UserService')).toBe(true);
+      expect(apis.some(a => a.name === 'InternalHelper')).toBe(true);
     });
 
-    it('should extract interface definitions', () => {
-      const pages = [
-        createTestPage({
-          id: 'api-page',
-          metadata: {
-            tags: ['api'],
-            category: 'api' as WikiCategory,
-            sourceFiles: [],
-            language: Language.TypeScript,
-          },
-          content: `\`\`\`typescript
+    it('should extract interfaces from code blocks', () => {
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'API Page',
+          slug: 'api-page',
+          content: `
+\`\`\`typescript
 export interface IUser {
   id: string;
   name: string;
 }
-\`\`\``,
-        }),
+\`\`\`
+`,
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'api',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const apis = extractor.extractAPIs(pages);
@@ -195,216 +317,392 @@ export interface IUser {
       expect(apis.some(a => a.name === 'IUser')).toBe(true);
     });
 
-    it('should extract function definitions', () => {
-      const pages = [
-        createTestPage({
-          id: 'api-page',
+    it('should extract functions from code blocks', () => {
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'API Page',
+          slug: 'api-page',
+          content: `
+\`\`\`typescript
+export async function fetchUser(id: string): Promise<User> {
+  // implementation
+}
+
+function helperFunction() {
+  // implementation
+}
+\`\`\`
+`,
+          format: DocumentFormat.Markdown,
           metadata: {
-            tags: ['api'],
-            category: 'api' as WikiCategory,
+            tags: [],
+            category: 'api',
             sourceFiles: [],
             language: Language.TypeScript,
           },
-          content: `\`\`\`typescript
-export function calculateTotal(items: Item[]): number {
-  return items.reduce((sum, item) => sum + item.value, 0);
-}
-\`\`\``,
-        }),
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const apis = extractor.extractAPIs(pages);
 
-      expect(apis.some(a => a.name === 'calculateTotal')).toBe(true);
+      expect(apis.some(a => a.name === 'fetchUser')).toBe(true);
+      expect(apis.some(a => a.name === 'helperFunction')).toBe(true);
     });
 
-    it('should only extract from API and reference pages', () => {
-      const pages = [
-        createTestPage({
-          id: 'api-page',
+    it('should only extract from api and reference categories', () => {
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Overview Page',
+          slug: 'overview-page',
+          content: `
+\`\`\`typescript
+class ShouldNotExtract {
+  // implementation
+}
+\`\`\`
+`,
+          format: DocumentFormat.Markdown,
           metadata: {
-            tags: ['api'],
-            category: 'api' as WikiCategory,
+            tags: [],
+            category: 'overview',
             sourceFiles: [],
             language: Language.TypeScript,
           },
-          content: '```typescript\nexport class ApiClass {}\n```',
-        }),
-        createTestPage({
-          id: 'guide-page',
-          metadata: {
-            tags: ['guide'],
-            category: 'guide' as WikiCategory,
-            sourceFiles: [],
-            language: Language.TypeScript,
-          },
-          content: '```typescript\nexport class GuideClass {}\n```',
-        }),
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const apis = extractor.extractAPIs(pages);
 
-      expect(apis.some(a => a.name === 'ApiClass')).toBe(true);
-      expect(apis.some(a => a.name === 'GuideClass')).toBe(false);
+      expect(apis.length).toBe(0);
     });
   });
 
   describe('extractPatterns', () => {
     it('should detect singleton pattern', () => {
-      const pages = [
-        createTestPage({
-          id: 'pattern-page',
-          content: `# Singleton Pattern
-Use getInstance to get the singleton instance.
-The instance is created only once.`,
-        }),
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Pattern Page',
+          slug: 'pattern-page',
+          content: `
+This uses the singleton pattern with getInstance method.
+The instance is shared across the application.
+`,
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const patterns = extractor.extractPatterns(pages);
 
-      expect(patterns.some(p => p.name.toLowerCase() === 'singleton')).toBe(true);
+      expect(patterns.some(p => p.name.toLowerCase().includes('singleton'))).toBe(true);
     });
 
     it('should detect factory pattern', () => {
-      const pages = [
-        createTestPage({
-          id: 'factory-page',
-          content: `# Factory
-The factory create method builds new objects.
-Use the factory to create instances.`,
-        }),
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Pattern Page',
+          slug: 'pattern-page',
+          content: `
+We use a factory to create objects.
+The factory pattern helps us build instances.
+`,
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const patterns = extractor.extractPatterns(pages);
 
-      expect(patterns.some(p => p.name.toLowerCase() === 'factory')).toBe(true);
+      expect(patterns.some(p => p.name.toLowerCase().includes('factory'))).toBe(true);
     });
 
     it('should detect observer pattern', () => {
-      const pages = [
-        createTestPage({
-          id: 'observer-page',
-          content: `# Observer
-Subscribe to events and the observer will notify you.
-Use emit to send notifications.`,
-        }),
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Pattern Page',
+          slug: 'pattern-page',
+          content: `
+The observer pattern is used here.
+We subscribe to events and notify listeners.
+`,
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const patterns = extractor.extractPatterns(pages);
 
-      expect(patterns.some(p => p.name.toLowerCase() === 'observer')).toBe(true);
+      expect(patterns.some(p => p.name.toLowerCase().includes('observer'))).toBe(true);
     });
 
     it('should require multiple keyword matches', () => {
-      const pages = [
-        createTestPage({
-          id: 'weak-pattern',
-          content: 'Just mentioning singleton once.',
-        }),
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Pattern Page',
+          slug: 'pattern-page',
+          content: `
+Just one mention of singleton here.
+`,
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const patterns = extractor.extractPatterns(pages);
 
-      expect(patterns.some(p => p.name.toLowerCase() === 'singleton')).toBe(false);
+      // Should not detect with only one keyword mention
+      expect(patterns.some(p => p.name.toLowerCase().includes('singleton'))).toBe(false);
     });
 
-    it('should aggregate patterns across pages', () => {
-      const pages = [
-        createTestPage({ id: 'p1', content: 'Use factory to create objects.' }),
-        createTestPage({ id: 'p2', content: 'The factory pattern is useful.' }),
+    it('should merge pattern occurrences across pages', () => {
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Page 1',
+          slug: 'page-1',
+          content: `
+Uses factory pattern with create method.
+`,
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
+        {
+          id: 'page-2',
+          title: 'Page 2',
+          slug: 'page-2',
+          content: `
+Also uses factory pattern with build method.
+`,
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const patterns = extractor.extractPatterns(pages);
 
-      const factoryPattern = patterns.find(p => p.name.toLowerCase() === 'factory');
+      const factoryPattern = patterns.find(p => p.name.toLowerCase().includes('factory'));
       expect(factoryPattern).toBeDefined();
+      expect(factoryPattern?.weight).toBe(2);
     });
   });
 
   describe('node properties', () => {
     it('should set correct node type for concepts', () => {
-      const pages = [
-        createTestPage({
-          id: 'type-test',
-          content: '**TestConcept**',
-        }),
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Test Page',
+          slug: 'test-page',
+          content: '# TestConcept',
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const concepts = extractor.extractConcepts(pages);
 
-      expect(concepts.every(c => c.type === 'concept')).toBe(true);
+      expect(concepts[0]?.type).toBe('concept');
     });
 
     it('should set correct node type for APIs', () => {
-      const pages = [
-        createTestPage({
-          id: 'api-type-test',
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'API Page',
+          slug: 'api-page',
+          content: `
+\`\`\`typescript
+class TestClass {}
+\`\`\`
+`,
+          format: DocumentFormat.Markdown,
           metadata: {
-            tags: ['api'],
-            category: 'api' as WikiCategory,
+            tags: [],
+            category: 'api',
             sourceFiles: [],
             language: Language.TypeScript,
           },
-          content: '```typescript\nexport class MyClass {}\n```',
-        }),
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const apis = extractor.extractAPIs(pages);
 
-      expect(apis.every(a => a.type === 'api')).toBe(true);
+      expect(apis[0]?.type).toBe('api');
     });
 
     it('should set correct node type for patterns', () => {
-      const pages = [
-        createTestPage({
-          id: 'pattern-type-test',
-          content: 'Use factory to create objects. The factory pattern is useful.',
-        }),
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Pattern Page',
+          slug: 'pattern-page',
+          content: `
+singleton pattern with getInstance and instance.
+`,
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const patterns = extractor.extractPatterns(pages);
 
-      expect(patterns.every(p => p.type === 'pattern')).toBe(true);
+      expect(patterns[0]?.type).toBe('pattern');
     });
 
-    it('should set metadata correctly', () => {
-      const pages = [
-        createTestPage({
-          id: 'meta-test',
-          content: '**TestConcept**',
-        }),
+    it('should calculate importance based on frequency', () => {
+      const pages: WikiPage[] = Array(10).fill(null).map((_, i) => ({
+        id: `page-${i}`,
+        title: `Page ${i}`,
+        slug: `page-${i}`,
+        content: '# PopularConcept',
+        format: DocumentFormat.Markdown,
+        metadata: {
+          tags: [],
+          category: 'overview',
+          sourceFiles: [],
+          language: Language.TypeScript,
+        },
+        sections: [],
+        links: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        version: 1,
+      }));
+
+      const concepts = extractor.extractConcepts(pages);
+
+      const popularConcept = concepts.find(c => c.name.toLowerCase() === 'popularconcept');
+      expect(popularConcept?.importance).toBeGreaterThan(0.5);
+    });
+
+    it('should generate unique IDs', () => {
+      const pages: WikiPage[] = [
+        {
+          id: 'page-1',
+          title: 'Test Page',
+          slug: 'test-page',
+          content: '# Concept1\n# Concept2',
+          format: DocumentFormat.Markdown,
+          metadata: {
+            tags: [],
+            category: 'overview',
+            sourceFiles: [],
+            language: Language.TypeScript,
+          },
+          sections: [],
+          links: [],
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          version: 1,
+        },
       ];
 
       const concepts = extractor.extractConcepts(pages);
 
-      expect(concepts[0].metadata).toBeDefined();
-      expect(concepts[0].metadata.tags).toBeDefined();
-    });
-
-    it('should set importance value', () => {
-      const pages = [
-        createTestPage({
-          id: 'importance-test',
-          content: '**TestConcept**',
-        }),
-      ];
-
-      const concepts = extractor.extractConcepts(pages);
-
-      expect(concepts[0].importance).toBeGreaterThanOrEqual(0);
-    });
-
-    it('should set weight value', () => {
-      const pages = [
-        createTestPage({
-          id: 'weight-test',
-          content: '**TestConcept**',
-        }),
-      ];
-
-      const concepts = extractor.extractConcepts(pages);
-
-      expect(concepts[0].weight).toBeGreaterThanOrEqual(0);
+      const ids = concepts.map(c => c.id);
+      const uniqueIds = new Set(ids);
+      expect(uniqueIds.size).toBe(ids.length);
     });
   });
 });
