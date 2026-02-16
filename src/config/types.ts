@@ -55,6 +55,7 @@ export interface LLMConfigOptions {
   maxTokens: number;
   baseUrl?: string;
   embeddingModel?: string;
+  caCert?: string;
 }
 
 export interface NotificationConfig {

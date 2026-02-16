@@ -1,261 +1,184 @@
-import * as crypto from 'crypto';
-import * as path from 'path';
-import * as fs from 'fs';
-import {
-  SuggestedAction,
-  ActionPriority,
-  ISuggestionGenerator,
-  ImpactItem,
-  RiskLevel,
-} from './types';
+import { SuggestedAction, ImpactItem, RiskAssessment, RiskLevel } from './types';
 
-export class SuggestionGenerator implements ISuggestionGenerator {
-  private projectPath: string;
+export class SuggestionGenerator {
 
-  constructor(projectPath: string) {
-    this.projectPath = projectPath;
+  constructor(_projectPath: string) {}
+
+  generateSuggestions(
+    directImpacts: ImpactItem[],
+    indirectImpacts: ImpactItem[],
+    riskAssessment: RiskAssessment
+  ): SuggestedAction[] {
+    const suggestions: SuggestedAction[] = [];
+
+    suggestions.push(...this.suggestDocUpdates([...directImpacts, ...indirectImpacts]));
+    suggestions.push(...this.suggestTestRuns([...directImpacts, ...indirectImpacts], riskAssessment));
+    suggestions.push(...this.suggestNotifications([...directImpacts, ...indirectImpacts], riskAssessment.overallRisk));
+
+    return suggestions.sort((a, b) => {
+      const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+      return priorityOrder[a.priority] - priorityOrder[b.priority];
+    });
   }
 
-  async suggestDocUpdates(impacts: ImpactItem[]): Promise<SuggestedAction[]> {
+  suggestDocUpdates(impacts: ImpactItem[]): SuggestedAction[] {
     const suggestions: SuggestedAction[] = [];
-    const pageImpacts = impacts.filter((i) => i.targetType === 'page');
+    const documentImpacts = impacts.filter(item => item.type === 'document');
+    const codeImpacts = impacts.filter(item => item.type === 'file');
 
-    for (const impact of pageImpacts) {
-      const priority = this.determineDocPriority(impact);
-      const affectedSections = impact.affectedSections;
-
+    if (documentImpacts.length > 0) {
       suggestions.push({
-        id: this.generateActionId(),
-        type: 'update-doc',
-        priority,
-        title: `Update documentation: ${impact.targetName}`,
-        description: `The page "${impact.targetName}" may need updates due to changes in ${impact.description}`,
-        targetIds: [impact.targetId],
-        estimatedEffort: this.estimateDocEffort(affectedSections.length),
-        automated: false,
-        metadata: {
-          reason: impact.description,
-          impact: `${affectedSections.length} section(s) potentially affected`,
-        },
+        id: `suggestion-doc-${Date.now()}-1`,
+        type: 'update',
+        priority: 'medium',
+        description: '更新受影响的文档',
+        target: documentImpacts.map(item => item.path).join(', '),
+        estimatedEffort: 'low',
+        deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
       });
     }
 
-    const apiImpacts = impacts.filter((i) => i.targetType === 'api');
-    for (const impact of apiImpacts) {
+    if (codeImpacts.length > 0) {
       suggestions.push({
-        id: this.generateActionId(),
-        type: 'update-doc',
-        priority: impact.metadata.breakingChange ? 'urgent' : 'high',
-        title: `Update API documentation: ${impact.targetName}`,
-        description: `API reference for "${impact.targetName}" needs to be updated`,
-        targetIds: [impact.targetId],
-        estimatedEffort: '30 minutes',
-        automated: false,
-        metadata: {
-          reason: impact.metadata.breakingChange ? 'Breaking change detected' : 'API modification',
-          impact: impact.metadata.breakingChange
-            ? 'May affect API consumers'
-            : 'Documentation sync required',
-        },
+        id: `suggestion-doc-${Date.now()}-2`,
+        type: 'update',
+        priority: 'low',
+        description: '检查并更新相关代码文档',
+        target: codeImpacts.map(item => item.path).join(', '),
+        estimatedEffort: 'low',
+        deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days
       });
     }
 
     return suggestions;
   }
 
-  async suggestTestRuns(impacts: ImpactItem[]): Promise<SuggestedAction[]> {
+  suggestTestRuns(impacts: ImpactItem[], riskAssessment: RiskAssessment): SuggestedAction[] {
     const suggestions: SuggestedAction[] = [];
-    const affectedFiles = new Set<string>();
-    const affectedModules = new Set<string>();
+    const testImpacts = impacts.filter(item => item.type === 'test');
+    const highImpactImpacts = impacts.filter(item => item.impactLevel === 'high');
 
-    for (const impact of impacts) {
-      if (impact.metadata.symbolName) {
-        affectedFiles.add(impact.metadata.symbolName);
-      }
-      if (impact.targetType === 'module') {
-        affectedModules.add(impact.targetName);
-      }
+    let priority: SuggestedAction['priority'] = 'medium';
+    let estimatedEffort: SuggestedAction['estimatedEffort'] = 'medium';
+
+    if (riskAssessment.overallRisk === 'critical' || riskAssessment.overallRisk === 'high') {
+      priority = 'high';
+      estimatedEffort = 'high';
+    } else if (riskAssessment.overallRisk === 'medium') {
+      priority = 'medium';
+      estimatedEffort = 'medium';
+    } else {
+      priority = 'low';
+      estimatedEffort = 'low';
     }
 
-    const testCommand = this.detectTestCommand();
+    suggestions.push({
+      id: `suggestion-test-${Date.now()}-1`,
+      type: 'test',
+      priority,
+      description: '运行相关测试用例',
+      target: impacts.map(item => item.path).join(', '),
+      estimatedEffort,
+      deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days
+    });
 
-    if (affectedFiles.size > 0 || affectedModules.size > 0) {
+    if (testImpacts.length > 0) {
       suggestions.push({
-        id: this.generateActionId(),
-        type: 'run-tests',
-        priority: this.determineTestPriority(impacts),
-        title: 'Run affected tests',
-        description: `Run tests for ${affectedFiles.size} file(s) and ${affectedModules.size} module(s)`,
-        targetIds: [...affectedFiles, ...affectedModules],
-        estimatedEffort: '5-15 minutes',
-        automated: true,
-        automationCommand: testCommand,
-        metadata: {
-          reason: 'Changes may affect test coverage',
-          impact: `${affectedFiles.size + affectedModules.size} items to test`,
-        },
+        id: `suggestion-test-${Date.now()}-2`,
+        type: 'update',
+        priority: 'medium',
+        description: '更新受影响的测试用例',
+        target: testImpacts.map(item => item.path).join(', '),
+        estimatedEffort: 'medium',
+        deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days
       });
     }
 
-    const breakingChanges = impacts.filter((i) => i.metadata.breakingChange);
-    if (breakingChanges.length > 0) {
+    if (highImpactImpacts.length > 0) {
       suggestions.push({
-        id: this.generateActionId(),
-        type: 'run-tests',
-        priority: 'urgent',
-        title: 'Run full test suite',
-        description: 'Breaking changes detected - recommend full test suite run',
-        targetIds: [],
-        estimatedEffort: '15-30 minutes',
-        automated: true,
-        automationCommand: testCommand || 'npm test',
-        metadata: {
-          reason: `${breakingChanges.length} breaking change(s) detected`,
-          impact: 'Full regression testing recommended',
-        },
+        id: `suggestion-test-${Date.now()}-3`,
+        type: 'test',
+        priority: 'high',
+        description: '进行全面回归测试',
+        target: highImpactImpacts.map(item => item.path).join(', '),
+        estimatedEffort: 'high',
+        deadline: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // 1 day
       });
     }
 
     return suggestions;
   }
 
-  async suggestNotifications(
-    impacts: ImpactItem[],
-    riskLevel: RiskLevel
-  ): Promise<SuggestedAction[]> {
+  suggestNotifications(impacts: ImpactItem[], riskLevel: RiskLevel): SuggestedAction[] {
     const suggestions: SuggestedAction[] = [];
+
+    let priority: SuggestedAction['priority'] = 'medium';
+
+    if (riskLevel === 'critical' || riskLevel === 'high') {
+      priority = 'urgent';
+    } else if (riskLevel === 'medium') {
+      priority = 'medium';
+    } else {
+      priority = 'low';
+    }
+
+    suggestions.push({
+      id: `suggestion-notify-${Date.now()}-1`,
+      type: 'notify',
+      priority,
+      description: '通知团队成员变更影响',
+      target: impacts.map(item => item.path).join(', '),
+      estimatedEffort: 'low',
+      deadline: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // 1 day
+    });
 
     if (riskLevel === 'critical' || riskLevel === 'high') {
       suggestions.push({
-        id: this.generateActionId(),
-        type: 'notify-team',
-        priority: riskLevel === 'critical' ? 'urgent' : 'high',
-        title: 'Notify development team',
-        description: `High-risk changes detected - notify relevant team members`,
-        targetIds: [],
-        estimatedEffort: '5 minutes',
-        automated: false,
-        metadata: {
-          reason: `Risk level: ${riskLevel}`,
-          impact: `${impacts.length} impact(s) identified`,
-        },
-      });
-    }
-
-    const apiImpacts = impacts.filter((i) => i.targetType === 'api');
-    if (apiImpacts.length > 0) {
-      suggestions.push({
-        id: this.generateActionId(),
-        type: 'notify-team',
+        id: `suggestion-notify-${Date.now()}-2`,
+        type: 'monitor',
         priority: 'high',
-        title: 'Notify API consumers',
-        description: 'API changes detected - notify affected consumers',
-        targetIds: apiImpacts.map((i) => i.targetId),
-        estimatedEffort: '10 minutes',
-        automated: false,
-        metadata: {
-          reason: 'API modification detected',
-          impact: `${apiImpacts.length} API endpoint(s) affected`,
-        },
+        description: '密切监控系统运行状况',
+        target: 'production',
+        estimatedEffort: 'medium',
+        deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
       });
     }
 
-    const moduleImpacts = impacts.filter((i) => i.targetType === 'module');
-    if (moduleImpacts.length > 0) {
+    if (riskLevel === 'critical') {
       suggestions.push({
-        id: this.generateActionId(),
-        type: 'notify-team',
-        priority: 'medium',
-        title: 'Notify module owners',
-        description: 'Module-level changes detected - notify module owners',
-        targetIds: moduleImpacts.map((i) => i.targetId),
-        estimatedEffort: '5 minutes',
-        automated: false,
-        metadata: {
-          reason: 'Module impact detected',
-          impact: `${moduleImpacts.length} module(s) affected`,
-        },
+        id: `suggestion-notify-${Date.now()}-3`,
+        type: 'rollback',
+        priority: 'urgent',
+        description: '准备回滚计划',
+        target: impacts.map(item => item.path).join(', '),
+        estimatedEffort: 'medium',
+        deadline: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // 1 day
       });
     }
 
     return suggestions;
   }
 
-  async generateAllSuggestions(
-    impacts: ImpactItem[],
-    riskLevel: RiskLevel
-  ): Promise<SuggestedAction[]> {
-    const docSuggestions = await this.suggestDocUpdates(impacts);
-    const testSuggestions = await this.suggestTestRuns(impacts);
-    const notificationSuggestions = await this.suggestNotifications(impacts, riskLevel);
+  generateAllSuggestions(impacts: ImpactItem[], riskLevel: RiskLevel): SuggestedAction[] {
+    const suggestions: SuggestedAction[] = [];
 
-    const allSuggestions = [...docSuggestions, ...testSuggestions, ...notificationSuggestions];
-
-    return this.prioritizeSuggestions(allSuggestions);
-  }
-
-  private determineDocPriority(impact: ImpactItem): ActionPriority {
-    if (impact.metadata.breakingChange) return 'urgent';
-    if (impact.severity === 'high' || impact.severity === 'critical') return 'high';
-    if (impact.severity === 'medium') return 'medium';
-    return 'low';
-  }
-
-  private estimateDocEffort(sectionCount: number): string {
-    if (sectionCount === 0) return '15 minutes';
-    if (sectionCount <= 2) return '30 minutes';
-    if (sectionCount <= 5) return '1 hour';
-    return '2+ hours';
-  }
-
-  private determineTestPriority(impacts: ImpactItem[]): ActionPriority {
-    const hasBreakingChanges = impacts.some((i) => i.metadata.breakingChange);
-    const highSeverityCount = impacts.filter(
-      (i) => i.severity === 'high' || i.severity === 'critical'
-    ).length;
-
-    if (hasBreakingChanges) return 'urgent';
-    if (highSeverityCount >= 3) return 'high';
-    if (highSeverityCount >= 1) return 'medium';
-    return 'low';
-  }
-
-  private detectTestCommand(): string | undefined {
-    const packageJsonPath = path.join(this.projectPath, 'package.json');
-
-    if (fs.existsSync(packageJsonPath)) {
-      try {
-        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-        const scripts = packageJson.scripts || {};
-
-        if (scripts.test) return 'npm test';
-        if (scripts['test:unit']) return 'npm run test:unit';
-        if (scripts['test:integration']) return 'npm run test:integration';
-      } catch {
-        // Ignore parse errors
-      }
-    }
-
-    return undefined;
-  }
-
-  private prioritizeSuggestions(suggestions: SuggestedAction[]): SuggestedAction[] {
-    const priorityOrder: Record<ActionPriority, number> = {
-      urgent: 0,
-      high: 1,
-      medium: 2,
-      low: 3,
+    const mockRiskAssessment: RiskAssessment = {
+      id: `risk-${Date.now()}`,
+      overallRisk: riskLevel,
+      riskScore: 0,
+      factors: [],
+      affectedAreas: impacts.map(item => item.path),
+      timeframe: 'immediate',
+      recommendation: 'Test recommendation',
     };
 
-    return suggestions.sort((a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]);
-  }
+    suggestions.push(...this.suggestDocUpdates(impacts));
+    suggestions.push(...this.suggestTestRuns(impacts, mockRiskAssessment));
+    suggestions.push(...this.suggestNotifications(impacts, riskLevel));
 
-  private generateActionId(): string {
-    const hash = crypto
-      .createHash('md5')
-      .update(`${Date.now()}-${Math.random()}`)
-      .digest('hex')
-      .substring(0, 8);
-    return `sa-${hash}`;
+    return suggestions.sort((a, b) => {
+      const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+      return priorityOrder[a.priority] - priorityOrder[b.priority];
+    });
   }
 }

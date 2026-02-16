@@ -1,21 +1,28 @@
 import { RiskAssessmentService } from '../../../src/wiki/impact/risk-assessment';
-import { ImpactItem, RiskLevel } from '../../../src/wiki/impact/types';
+import { ImpactItem, RiskFactor } from '../../../src/wiki/impact/types';
 
 function createTestImpact(overrides: Partial<ImpactItem> = {}): ImpactItem {
   return {
     id: 'impact-1',
-    type: 'direct',
-    targetId: 'target-1',
-    targetType: 'page',
-    targetName: 'Test Target',
+    type: 'file',
+    name: 'Test File',
+    path: 'src/test.ts',
+    impactLevel: 'medium',
     description: 'Test impact',
+    affectedBy: [],
+    affects: [],
+    ...overrides,
+  };
+}
+
+function createTestRiskFactor(overrides: Partial<RiskFactor> = {}): RiskFactor {
+  return {
+    id: 'factor-1',
+    type: 'breaking-change',
+    description: 'Test risk factor',
     severity: 'medium',
     confidence: 0.8,
-    affectedSections: [],
-    metadata: {
-      breakingChange: false,
-      deprecation: false,
-    },
+    mitigation: 'Test mitigation',
     ...overrides,
   };
 }
@@ -28,248 +35,224 @@ describe('RiskAssessmentService', () => {
   });
 
   describe('calculateRiskScore', () => {
-    it('should return 0 for empty impacts', async () => {
-      const score = await service.calculateRiskScore([]);
+    it('should return 0 for empty factors', () => {
+      const score = service.calculateRiskScore([]);
 
       expect(score).toBe(0);
     });
 
-    it('should calculate score based on severity', async () => {
-      const lowImpact = createTestImpact({ severity: 'low' });
-      const mediumImpact = createTestImpact({ severity: 'medium' });
-      const highImpact = createTestImpact({ severity: 'high' });
-      const criticalImpact = createTestImpact({ severity: 'critical' });
+    it('should calculate score based on severity', () => {
+      const lowFactor = createTestRiskFactor({ severity: 'low' });
+      const mediumFactor = createTestRiskFactor({ severity: 'medium' });
+      const highFactor = createTestRiskFactor({ severity: 'high' });
 
-      const lowScore = await service.calculateRiskScore([lowImpact]);
-      const mediumScore = await service.calculateRiskScore([mediumImpact]);
-      const highScore = await service.calculateRiskScore([highImpact]);
-      const criticalScore = await service.calculateRiskScore([criticalImpact]);
+      const lowScore = service.calculateRiskScore([lowFactor]);
+      const mediumScore = service.calculateRiskScore([mediumFactor]);
+      const highScore = service.calculateRiskScore([highFactor]);
 
-      expect(criticalScore).toBeGreaterThan(highScore);
       expect(highScore).toBeGreaterThan(mediumScore);
       expect(mediumScore).toBeGreaterThan(lowScore);
     });
 
-    it('should increase score for breaking changes', async () => {
-      const normalImpact = createTestImpact({ severity: 'high' });
-      const breakingImpact = createTestImpact({
-        severity: 'high',
-        metadata: { breakingChange: true, deprecation: false },
-      });
+    it('should consider confidence', () => {
+      const highConfidence = createTestRiskFactor({ severity: 'high', confidence: 0.9 });
+      const lowConfidence = createTestRiskFactor({ severity: 'high', confidence: 0.5 });
 
-      const normalScore = await service.calculateRiskScore([normalImpact]);
-      const breakingScore = await service.calculateRiskScore([breakingImpact]);
+      const highScore = service.calculateRiskScore([highConfidence]);
+      const lowScore = service.calculateRiskScore([lowConfidence]);
 
-      expect(breakingScore).toBeGreaterThan(normalScore);
+      expect(highScore).toBeGreaterThanOrEqual(lowScore);
     });
 
-    it('should consider impact type', async () => {
-      const directImpact = createTestImpact({ type: 'direct', severity: 'medium' });
-      const indirectImpact = createTestImpact({ type: 'indirect', severity: 'medium' });
-
-      const directScore = await service.calculateRiskScore([directImpact]);
-      const indirectScore = await service.calculateRiskScore([indirectImpact]);
-
-      expect(directScore).toBeGreaterThan(indirectScore);
-    });
-
-    it('should consider confidence', async () => {
-      const highConfidence = createTestImpact({ severity: 'high', confidence: 0.9 });
-      const lowConfidence = createTestImpact({ severity: 'high', confidence: 0.5 });
-
-      const highScore = await service.calculateRiskScore([highConfidence]);
-      const lowScore = await service.calculateRiskScore([lowConfidence]);
-
-      expect(highScore).toBeGreaterThan(lowScore);
-    });
-
-    it('should handle multiple impacts', async () => {
-      const impacts = [
-        createTestImpact({ severity: 'high' }),
-        createTestImpact({ severity: 'medium' }),
-        createTestImpact({ severity: 'low' }),
+    it('should handle multiple factors', () => {
+      const factors = [
+        createTestRiskFactor({ severity: 'high' }),
+        createTestRiskFactor({ severity: 'medium' }),
+        createTestRiskFactor({ severity: 'low' }),
       ];
 
-      const score = await service.calculateRiskScore(impacts);
+      const score = service.calculateRiskScore(factors);
 
       expect(score).toBeGreaterThan(0);
+    });
+
+    it('should weight high severity factors more', () => {
+      const allLow = [
+        createTestRiskFactor({ severity: 'low' }),
+        createTestRiskFactor({ severity: 'low' }),
+      ];
+      const oneHigh = [createTestRiskFactor({ severity: 'high' })];
+
+      const lowScore = service.calculateRiskScore(allLow);
+      const highScore = service.calculateRiskScore(oneHigh);
+
+      expect(highScore).toBeGreaterThan(lowScore);
     });
   });
 
   describe('identifyRiskFactors', () => {
-    it('should identify breaking changes', async () => {
-      const impacts = [
-        createTestImpact({
-          metadata: { breakingChange: true, deprecation: false },
-        }),
-      ];
+    it('should identify risk factors for removed files', () => {
+      const directImpacts = [createTestImpact({ impactLevel: 'high' })];
+      const indirectImpacts: ImpactItem[] = [];
 
-      const factors = await service.identifyRiskFactors(impacts);
+      const factors = service.identifyRiskFactors(directImpacts, indirectImpacts, 'removed');
 
-      expect(factors.some(f => f.id.includes('breaking'))).toBe(true);
+      expect(factors.length).toBeGreaterThan(0);
+      expect(factors.some(f => f.type === 'breaking-change')).toBe(true);
     });
 
-    it('should identify high severity impacts', async () => {
-      const impacts = [
-        createTestImpact({ severity: 'high' }),
-        createTestImpact({ severity: 'critical' }),
+    it('should identify risk factors for multiple high impacts', () => {
+      const directImpacts = [
+        createTestImpact({ impactLevel: 'high' }),
+        createTestImpact({ impactLevel: 'high' }),
+        createTestImpact({ impactLevel: 'high' }),
       ];
+      const indirectImpacts: ImpactItem[] = [];
 
-      const factors = await service.identifyRiskFactors(impacts);
+      const factors = service.identifyRiskFactors(directImpacts, indirectImpacts, 'modified');
 
-      expect(factors.some(f => f.id.includes('high-severity'))).toBe(true);
+      expect(factors.some(f => f.description.includes('高影响'))).toBe(true);
     });
 
-    it('should identify API changes', async () => {
-      const impacts = [
-        createTestImpact({ targetType: 'api' }),
-      ];
+    it('should identify test impacts', () => {
+      const directImpacts = [createTestImpact({ type: 'test' })];
+      const indirectImpacts: ImpactItem[] = [];
 
-      const factors = await service.identifyRiskFactors(impacts);
+      const factors = service.identifyRiskFactors(directImpacts, indirectImpacts, 'modified');
 
-      expect(factors.some(f => f.id.includes('api'))).toBe(true);
+      expect(factors.some(f => f.description.includes('测试'))).toBe(true);
     });
 
-    it('should identify documentation drift', async () => {
-      const impacts = [
-        createTestImpact({
-          targetType: 'page',
-          affectedSections: ['Section 1', 'Section 2'],
-        }),
-      ];
+    it('should identify document impacts', () => {
+      const directImpacts = [createTestImpact({ type: 'document' })];
+      const indirectImpacts: ImpactItem[] = [];
 
-      const factors = await service.identifyRiskFactors(impacts);
+      const factors = service.identifyRiskFactors(directImpacts, indirectImpacts, 'modified');
 
-      expect(factors.some(f => f.id.includes('documentation'))).toBe(true);
+      expect(factors.some(f => f.description.includes('文档'))).toBe(true);
     });
 
-    it('should identify module impacts', async () => {
-      const impacts = [
-        createTestImpact({ targetType: 'module' }),
-      ];
+    it('should identify high impact modifications', () => {
+      const directImpacts = [createTestImpact({ impactLevel: 'high' })];
+      const indirectImpacts: ImpactItem[] = [];
 
-      const factors = await service.identifyRiskFactors(impacts);
+      const factors = service.identifyRiskFactors(directImpacts, indirectImpacts, 'modified');
 
-      expect(factors.some(f => f.id.includes('module'))).toBe(true);
+      expect(factors.some(f => f.description.includes('核心'))).toBe(true);
     });
 
-    it('should return empty array for no significant impacts', async () => {
-      const impacts = [
-        createTestImpact({ severity: 'low', targetType: 'file' }),
-      ];
+    it('should return empty array for low impact changes', () => {
+      const directImpacts = [createTestImpact({ impactLevel: 'low', type: 'file' })];
+      const indirectImpacts: ImpactItem[] = [];
 
-      const factors = await service.identifyRiskFactors(impacts);
+      const factors = service.identifyRiskFactors(directImpacts, indirectImpacts, 'added');
 
-      expect(factors.length).toBeLessThanOrEqual(1);
+      expect(factors.length).toBe(0);
     });
   });
 
   describe('generateMitigation', () => {
-    it('should generate mitigation for breaking changes', async () => {
+    it('should generate mitigation strings from factors', () => {
       const factors = [
-        {
-          id: 'rf-breaking-changes',
-          name: 'Breaking Changes',
-          description: 'Test',
-          severity: 'high' as RiskLevel,
-          probability: 0.9,
-          impact: 0.8,
-          category: 'breaking-change' as const,
-          affectedItems: ['item1'],
-          evidence: [],
-        },
+        createTestRiskFactor({ mitigation: 'Update tests' }),
+        createTestRiskFactor({ mitigation: 'Update documentation' }),
       ];
 
-      const strategies = await service.generateMitigation(factors);
+      const strategies = service.generateMitigation(factors);
 
-      expect(strategies.length).toBeGreaterThan(0);
-      expect(strategies.some(s => s.name.includes('Breaking'))).toBe(true);
+      expect(strategies.length).toBe(2);
+      expect(strategies).toContain('Update tests');
+      expect(strategies).toContain('Update documentation');
     });
 
-    it('should generate general mitigation for high risks', async () => {
-      const factors = [
-        {
-          id: 'rf-test',
-          name: 'High Risk',
-          description: 'Test',
-          severity: 'critical' as RiskLevel,
-          probability: 0.9,
-          impact: 0.9,
-          category: 'dependency' as const,
-          affectedItems: [],
-          evidence: [],
-        },
-      ];
+    it('should return empty array for no factors', () => {
+      const strategies = service.generateMitigation([]);
 
-      const strategies = await service.generateMitigation(factors);
+      expect(strategies).toHaveLength(0);
+    });
+  });
 
-      expect(strategies.some(s => s.name.includes('Comprehensive'))).toBe(true);
+  describe('assessRisk', () => {
+    it('should return complete risk assessment', () => {
+      const directImpacts = [createTestImpact({ impactLevel: 'high' })];
+      const indirectImpacts = [createTestImpact({ impactLevel: 'medium' })];
+
+      const assessment = service.assessRisk(directImpacts, indirectImpacts, 'modified');
+
+      expect(assessment.overallRisk).toBeDefined();
+      expect(assessment.riskScore).toBeGreaterThanOrEqual(0);
+      expect(assessment.factors).toBeDefined();
+      expect(assessment.affectedAreas).toBeDefined();
+      expect(assessment.timeframe).toBeDefined();
+      expect(assessment.recommendation).toBeDefined();
     });
 
-    it('should include steps in mitigation strategies', async () => {
-      const factors = [
-        {
-          id: 'rf-breaking-changes',
-          name: 'Breaking Changes',
-          description: 'Test',
-          severity: 'high' as RiskLevel,
-          probability: 0.9,
-          impact: 0.8,
-          category: 'breaking-change' as const,
-          affectedItems: [],
-          evidence: [],
-        },
+    it('should determine correct overall risk level for critical changes', () => {
+      const directImpacts = [
+        createTestImpact({ impactLevel: 'high' }),
+        createTestImpact({ impactLevel: 'high' }),
+        createTestImpact({ impactLevel: 'high' }),
       ];
 
-      const strategies = await service.generateMitigation(factors);
+      const assessment = service.assessRisk(directImpacts, [], 'removed');
 
-      expect(strategies[0].steps.length).toBeGreaterThan(0);
+      expect(['high', 'critical']).toContain(assessment.overallRisk);
+    });
+
+    it('should determine correct overall risk level for low changes', () => {
+      const directImpacts = [createTestImpact({ impactLevel: 'low' })];
+
+      const assessment = service.assessRisk(directImpacts, [], 'added');
+
+      expect(['low', 'medium']).toContain(assessment.overallRisk);
+    });
+
+    it('should set immediate timeframe for removed files', () => {
+      const assessment = service.assessRisk([], [], 'removed');
+
+      expect(assessment.timeframe).toBe('immediate');
+    });
+
+    it('should identify affected areas', () => {
+      const directImpacts = [
+        createTestImpact({ path: 'src/components/Button.tsx', type: 'function' }),
+        createTestImpact({ path: 'src/utils/helpers.ts', type: 'class' }),
+      ];
+
+      const assessment = service.assessRisk(directImpacts, [], 'modified');
+
+      expect(assessment.affectedAreas.length).toBeGreaterThan(0);
+      expect(assessment.affectedAreas).toContain('function');
+      expect(assessment.affectedAreas).toContain('class');
+    });
+
+    it('should generate appropriate recommendation for critical risk', () => {
+      const directImpacts = Array(5).fill(null).map(() => createTestImpact({ impactLevel: 'high' }));
+
+      const assessment = service.assessRisk(directImpacts, [], 'removed');
+
+      expect(assessment.recommendation.length).toBeGreaterThan(0);
     });
   });
 
   describe('assessOverallRisk', () => {
-    it('should return complete risk assessment', async () => {
+    it('should return risk level for impacts', () => {
       const impacts = [
-        createTestImpact({ severity: 'high' }),
-        createTestImpact({ severity: 'medium' }),
+        createTestImpact({ impactLevel: 'high' }),
+        createTestImpact({ impactLevel: 'medium' }),
       ];
 
-      const assessment = await service.assessOverallRisk(impacts);
+      const riskLevel = service.assessOverallRisk(impacts);
 
-      expect(assessment.overallRisk).toBeDefined();
-      expect(assessment.riskScore).toBeGreaterThanOrEqual(0);
-      expect(assessment.riskFactors).toBeDefined();
-      expect(assessment.mitigationStrategies).toBeDefined();
-      expect(assessment.confidence).toBeGreaterThanOrEqual(0);
-      expect(assessment.summary).toBeDefined();
+      expect(['low', 'medium', 'high', 'critical']).toContain(riskLevel);
     });
 
-    it('should determine correct overall risk level', async () => {
-      const criticalImpacts = [createTestImpact({ severity: 'critical' })];
-      const highImpacts = [
-        createTestImpact({ severity: 'high' }),
-        createTestImpact({ severity: 'high' }),
-      ];
-      const lowImpacts = [createTestImpact({ severity: 'low' })];
+    it('should return low for minimal impacts', () => {
+      const impacts = [createTestImpact({ impactLevel: 'low' })];
 
-      const criticalAssessment = await service.assessOverallRisk(criticalImpacts);
-      const highAssessment = await service.assessOverallRisk(highImpacts);
-      const lowAssessment = await service.assessOverallRisk(lowImpacts);
+      const riskLevel = service.assessOverallRisk(impacts);
 
-      expect(criticalAssessment.overallRisk).toBe('critical');
-      expect(['high', 'critical']).toContain(highAssessment.overallRisk);
-      expect(['low', 'medium']).toContain(lowAssessment.overallRisk);
-    });
-
-    it('should generate meaningful summary', async () => {
-      const impacts = [
-        createTestImpact({ severity: 'high', targetName: 'Target A' }),
-      ];
-
-      const assessment = await service.assessOverallRisk(impacts);
-
-      expect(assessment.summary.length).toBeGreaterThan(0);
-      expect(assessment.summary).toContain('risk');
+      expect(['low', 'medium']).toContain(riskLevel);
     });
   });
 });

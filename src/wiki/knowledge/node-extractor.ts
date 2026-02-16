@@ -1,6 +1,6 @@
 import * as crypto from 'crypto';
 import { WikiPage } from '../types';
-import { KnowledgeNode, KnowledgeNodeType, KnowledgeNodeMetadata } from './types';
+import { KnowledgeNode, KnowledgeNodeMetadata } from './types';
 
 export class NodeExtractor {
   private patternKeywords: Map<string, string[]>;
@@ -74,7 +74,7 @@ export class NodeExtractor {
     const nodes: KnowledgeNode[] = [];
     const apiMap = new Map<
       string,
-      { page: WikiPage; signatures: string[]; description?: string }
+      { page: WikiPage; signatures: string[]; description?: string; apiType: string }
     >();
 
     for (const page of pages) {
@@ -82,7 +82,7 @@ export class NodeExtractor {
         const apis = this.extractAPIsFromPage(page);
 
         for (const api of apis) {
-          const key = `${api.type}:${api.name}`;
+          const key = `${api.apiType}:${api.name}`;
           const existing = apiMap.get(key);
 
           if (existing) {
@@ -92,6 +92,7 @@ export class NodeExtractor {
               page,
               signatures: api.signatures,
               description: api.description,
+              apiType: api.apiType,
             });
           }
         }
@@ -99,10 +100,10 @@ export class NodeExtractor {
     }
 
     for (const [key, data] of apiMap) {
-      const [type, name] = key.split(':');
+      const [_apiType, name] = key.split(':');
       const node = this.createAPINode(
         name,
-        type as KnowledgeNodeType,
+        data.apiType,
         data.signatures,
         data.page,
         data.description
@@ -194,10 +195,10 @@ export class NodeExtractor {
 
   private extractAPIsFromPage(
     page: WikiPage
-  ): Array<{ name: string; type: KnowledgeNodeType; signatures: string[]; description?: string }> {
+  ): Array<{ name: string; apiType: string; signatures: string[]; description?: string }> {
     const apis: Array<{
       name: string;
-      type: KnowledgeNodeType;
+      apiType: string;
       signatures: string[];
       description?: string;
     }> = [];
@@ -211,7 +212,7 @@ export class NodeExtractor {
       const extractedAPIs = this.extractAPIsFromCode(code);
 
       for (const api of extractedAPIs) {
-        const key = `${api.type}:${api.name}`;
+        const key = `${api.apiType}:${api.name}`;
         if (!seen.has(key)) {
           seen.add(key);
           apis.push(api);
@@ -224,10 +225,10 @@ export class NodeExtractor {
 
   private extractAPIsFromCode(
     code: string
-  ): Array<{ name: string; type: KnowledgeNodeType; signatures: string[]; description?: string }> {
+  ): Array<{ name: string; apiType: string; signatures: string[]; description?: string }> {
     const apis: Array<{
       name: string;
-      type: KnowledgeNodeType;
+      apiType: string;
       signatures: string[];
       description?: string;
     }> = [];
@@ -239,7 +240,7 @@ export class NodeExtractor {
     while ((match = classPattern.exec(code)) !== null) {
       apis.push({
         name: match[1],
-        type: 'class',
+        apiType: 'class',
         signatures: [match[0].split('{')[0].trim()],
       });
     }
@@ -248,17 +249,17 @@ export class NodeExtractor {
     while ((match = interfacePattern.exec(code)) !== null) {
       apis.push({
         name: match[1],
-        type: 'interface',
+        apiType: 'interface',
         signatures: [match[0].split('{')[0].trim()],
       });
     }
 
     const functionPattern =
-      /(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*<[^>]*>\s*\([^)]*\)(?:\s*:\s*[^{=]+)?/g;
+      /(?:export\s+)?(?:async\s+)?function\s+(\w+)\s*(?:<[^>]*>)?\s*\([^)]*\)(?:\s*:\s*[^{=]+)?/g;
     while ((match = functionPattern.exec(code)) !== null) {
       apis.push({
         name: match[1],
-        type: 'function',
+        apiType: 'function',
         signatures: [match[0].trim()],
       });
     }
@@ -268,7 +269,7 @@ export class NodeExtractor {
     while ((match = arrowFunctionPattern.exec(code)) !== null) {
       apis.push({
         name: match[1],
-        type: 'function',
+        apiType: 'function',
         signatures: [match[0].trim()],
       });
     }
@@ -315,19 +316,21 @@ export class NodeExtractor {
 
     const metadata: KnowledgeNodeMetadata = {
       tags: [name],
-      visibility: 'public',
       stability: 'stable',
-      custom: { frequency, sourcePageCount: sourcePageIds.length },
+      importance,
     };
 
     return {
       id,
       type: 'concept',
+      title: name,
       name,
       description,
-      sourcePageId: sourcePageIds[0],
-      metadata,
+      tags: [name],
+      weight: frequency,
+      relatedCount: sourcePageIds.length,
       importance,
+      metadata,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -335,56 +338,56 @@ export class NodeExtractor {
 
   private createAPINode(
     name: string,
-    type: KnowledgeNodeType,
-    signatures: string[],
-    page: WikiPage,
+    apiType: string,
+    _signatures: string[],
+    _page: WikiPage,
     description?: string
   ): KnowledgeNode {
-    const id = this.generateId(type, name);
+    const id = this.generateId('api', name);
 
     const metadata: KnowledgeNodeMetadata = {
-      tags: [name, type],
-      category: page.metadata.category,
-      visibility: 'public',
+      tags: [name, apiType],
       stability: 'stable',
-      custom: { signatureCount: signatures.length },
+      importance: 0.8,
     };
 
     return {
       id,
-      type,
+      type: 'api',
+      title: name,
       name,
-      description: description || `${type}: ${name}`,
-      sourcePageId: page.id,
-      sourceFile: page.metadata.sourceFiles[0],
-      metadata,
+      description: description || `${apiType}: ${name}`,
+      tags: [name, apiType],
+      weight: 1,
+      relatedCount: 1,
       importance: 0.8,
+      metadata,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
   }
 
-  private createPatternNode(name: string, pages: WikiPage[], evidence: string[]): KnowledgeNode {
+  private createPatternNode(name: string, pages: WikiPage[], _evidence: string[]): KnowledgeNode {
     const id = this.generateId('pattern', name);
+    const importance = Math.min(1, pages.length * 0.3);
 
     const metadata: KnowledgeNodeMetadata = {
       tags: [name, 'design-pattern'],
-      visibility: 'public',
       stability: 'stable',
-      custom: {
-        pageCount: pages.length,
-        evidenceCount: evidence.length,
-      },
+      importance,
     };
 
     return {
       id,
       type: 'pattern',
+      title: this.formatPatternName(name),
       name: this.formatPatternName(name),
       description: `Design pattern: ${name}. Detected in ${pages.length} page(s).`,
-      sourcePageId: pages[0].id,
+      tags: [name, 'design-pattern'],
+      weight: pages.length,
+      relatedCount: pages.length,
+      importance,
       metadata,
-      importance: Math.min(1, pages.length * 0.3),
       createdAt: new Date(),
       updatedAt: new Date(),
     };

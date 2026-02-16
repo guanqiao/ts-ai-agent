@@ -42,6 +42,7 @@ program
   .option('--model <model>', 'LLM model name', 'gpt-4')
   .option('--api-key <key>', 'API key for LLM provider')
   .option('--base-url <url>', 'Base URL for LLM API')
+  .option('--ca-cert <path>', 'Path to CA certificate file (optional)')
   .option('--include-private', 'Include private members', false)
   .option('--verbose', 'Enable verbose output', false)
   .option('--dry-run', 'Parse only, do not generate documentation', false)
@@ -103,6 +104,7 @@ program
         baseUrl: options.baseUrl,
         temperature: 0.7,
         maxTokens: 4096,
+        caCert: options.caCert,
       };
 
       spinner.text = 'Generating documentation with AI...';
@@ -213,6 +215,7 @@ program
   .option('--model <model>', 'LLM model name', 'gpt-4')
   .option('--api-key <key>', 'API key for LLM provider')
   .option('--base-url <url>', 'Base URL for LLM API')
+  .option('--ca-cert <path>', 'Path to CA certificate file (optional)')
   .option('--watch', 'Enable watch mode for auto-updates', false)
   .option('--query <question>', 'Query the wiki knowledge base')
   .option('--search <query>', 'Search wiki documents')
@@ -241,6 +244,7 @@ program
         baseUrl: options.baseUrl,
         temperature: 0.7,
         maxTokens: 4096,
+        caCert: options.caCert,
       };
 
       const wikiOptions: WikiOptions = {

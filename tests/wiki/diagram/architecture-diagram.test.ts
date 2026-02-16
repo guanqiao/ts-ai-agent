@@ -1,5 +1,5 @@
-import { ArchitectureDiagramGenerator } from '../../src/wiki/diagram/architecture-diagram';
-import { DiagramExporter } from '../../src/wiki/diagram/diagram-exporter';
+import { ArchitectureDiagramGenerator } from '../../../src/wiki/diagram/architecture-diagram';
+import { DiagramExporter } from '../../../src/wiki/diagram/diagram-exporter';
 import {
   ArchitectureDiagram,
   LayeredDiagramConfig,
@@ -9,7 +9,7 @@ import {
   DiagramEdge,
   DiagramLayer,
   DEFAULT_EXPORT_OPTIONS,
-} from '../../src/wiki/diagram/types';
+} from '../../../src/wiki/diagram/types';
 
 describe('ArchitectureDiagramGenerator', () => {
   let generator: ArchitectureDiagramGenerator;
@@ -313,7 +313,7 @@ describe('DiagramExporter', () => {
 
 describe('Diagram Types and Styles', () => {
   it('should have consistent node type styles', () => {
-    const { NODE_TYPE_STYLES } = require('../../src/wiki/diagram/types');
+    const { NODE_TYPE_STYLES } = require('../../../src/wiki/diagram/types');
 
     expect(NODE_TYPE_STYLES.component).toBeDefined();
     expect(NODE_TYPE_STYLES.service).toBeDefined();
@@ -322,7 +322,7 @@ describe('Diagram Types and Styles', () => {
   });
 
   it('should have consistent edge type styles', () => {
-    const { EDGE_TYPE_STYLES } = require('../../src/wiki/diagram/types');
+    const { EDGE_TYPE_STYLES } = require('../../../src/wiki/diagram/types');
 
     expect(EDGE_TYPE_STYLES.dependency).toBeDefined();
     expect(EDGE_TYPE_STYLES.dataflow).toBeDefined();
@@ -331,7 +331,7 @@ describe('Diagram Types and Styles', () => {
   });
 
   it('should have default export options', () => {
-    const { DEFAULT_EXPORT_OPTIONS } = require('../../src/wiki/diagram/types');
+    const { DEFAULT_EXPORT_OPTIONS } = require('../../../src/wiki/diagram/types');
 
     expect(DEFAULT_EXPORT_OPTIONS.format).toBe('mermaid');
     expect(DEFAULT_EXPORT_OPTIONS.scale).toBe(1);

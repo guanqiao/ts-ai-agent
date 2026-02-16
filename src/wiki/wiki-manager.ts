@@ -76,12 +76,11 @@ import {
 import {
   KnowledgeGraph,
   KnowledgeNode,
-  KnowledgeGraphQuery,
-  KnowledgeGraphQueryResult,
   Recommendation,
-  RecommendationContext,
   LearningPath,
+  KnowledgeGraphService,
 } from './knowledge';
+import { KnowledgeCluster } from './knowledge/types';
 import {
   EnhancedChangeImpact,
   ImpactItem,
@@ -140,7 +139,7 @@ export class WikiManager extends EventEmitter implements IWikiManager {
   private adrService: ADRService | null = null;
   private adrExtractor: ADRExtractor | null = null;
   private adrTemplates: ADRTemplates | null = null;
-  private knowledgeGraphService: import('./knowledge').KnowledgeGraphService | null = null;
+  private knowledgeGraphService: KnowledgeGraphService | null = null;
   private changeImpactAnalyzer: import('./impact').ChangeImpactAnalyzer | null = null;
   private riskAssessmentService: import('./impact').RiskAssessmentService | null = null;
   private suggestionGenerator: import('./impact').SuggestionGenerator | null = null;
@@ -181,7 +180,7 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     this.adrService = new ADRService(projectPath);
     this.adrExtractor = new ADRExtractor();
     this.adrTemplates = new ADRTemplates(projectPath);
-    this.knowledgeGraphService = new (await import('./knowledge')).KnowledgeGraphService();
+    this.knowledgeGraphService = new KnowledgeGraphService();
     const impactModule = await import('./impact');
     this.changeImpactAnalyzer = new impactModule.ChangeImpactAnalyzer(projectPath);
     this.riskAssessmentService = new impactModule.RiskAssessmentService();
@@ -872,56 +871,31 @@ export class WikiManager extends EventEmitter implements IWikiManager {
   // ==================== 知识图谱方法 ====================
 
   async buildKnowledgeGraph(): Promise<KnowledgeGraph> {
-    const document = await this.storage!.load(this.projectPath);
-    if (!document) {
-      throw new Error('No wiki found. Please generate first.');
-    }
-
-    return this.knowledgeGraphService!.build(document.pages);
+    return this.knowledgeGraphService!.build();
   }
 
-  async queryKnowledgeGraph(query: KnowledgeGraphQuery): Promise<KnowledgeGraphQueryResult> {
-    return this.knowledgeGraphService!.query(query);
+  async queryKnowledgeGraph(query: string, options?: {
+    limit?: number;
+    types?: KnowledgeNode['type'][];
+    clusters?: string[];
+  }): Promise<KnowledgeNode[]> {
+    return this.knowledgeGraphService!.query(query, options);
   }
 
-  async findRelatedNodes(nodeId: string, maxDepth?: number): Promise<KnowledgeNode[]> {
-    return this.knowledgeGraphService!.findRelated(nodeId, maxDepth);
+  async findRelatedNodes(nodeId: string, limit?: number): Promise<KnowledgeNode[]> {
+    return this.knowledgeGraphService!.getRelatedNodes(nodeId, limit);
   }
 
-  async getLearningPath(startNodeId: string, endNodeId: string): Promise<LearningPath | null> {
-    return this.knowledgeGraphService!.getLearningPath(startNodeId, endNodeId);
-  }
-
-  async getRecommendations(context: RecommendationContext): Promise<Recommendation[]> {
-    return this.knowledgeGraphService!.recommend(context);
-  }
-
-  async exportKnowledgeGraph(format: 'json' | 'graphml' | 'gexf'): Promise<string> {
+  async exportKnowledgeGraph(format: 'json' | 'csv' | 'graphml'): Promise<string> {
     return this.knowledgeGraphService!.export(format);
   }
 
-  async importKnowledgeGraph(
-    data: string,
-    format: 'json' | 'graphml' | 'gexf'
-  ): Promise<KnowledgeGraph> {
-    return this.knowledgeGraphService!.import(data, format);
+  async getKnowledgeGraphClusters(): Promise<KnowledgeCluster[]> {
+    return this.knowledgeGraphService!.getClusters();
   }
 
-  getKnowledgeGraph(): KnowledgeGraph | null {
-    return this.knowledgeGraphService!.getGraph();
-  }
-
-  getKnowledgeGraphNode(nodeId: string): KnowledgeNode | undefined {
-    return this.knowledgeGraphService!.getNode(nodeId);
-  }
-
-  getKnowledgeGraphStatistics(): {
-    nodeCount: number;
-    edgeCount: number;
-    clusterCount: number;
-    avgConnectivity: number;
-  } {
-    return this.knowledgeGraphService!.getStatistics();
+  async getKnowledgeGraphNode(nodeId: string): Promise<KnowledgeNode | null> {
+    return this.knowledgeGraphService!.getNodeById(nodeId);
   }
 
   // ==================== 变更影响分析方法 ====================

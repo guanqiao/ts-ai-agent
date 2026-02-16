@@ -1,63 +1,36 @@
-import { WikiPage, WikiCategory } from '../types';
+export type KnowledgeNodeType = 'concept' | 'api' | 'pattern' | 'component' | 'module' | 'page' | 'decision';
 
-export type KnowledgeNodeType =
-  | 'concept'
-  | 'api'
-  | 'pattern'
-  | 'module'
-  | 'class'
-  | 'function'
-  | 'interface'
-  | 'decision';
-
-export type KnowledgeEdgeType =
-  | 'depends-on'
-  | 'implements'
-  | 'extends'
-  | 'calls'
-  | 'references'
-  | 'contains'
-  | 'related-to'
-  | 'supersedes';
+export interface KnowledgeNodeMetadata {
+  stability?: 'stable' | 'experimental' | 'deprecated';
+  tags: string[];
+  importance?: number;
+}
 
 export interface KnowledgeNode {
   id: string;
   type: KnowledgeNodeType;
+  title: string;
   name: string;
   description?: string;
-  sourcePageId?: string;
-  sourceFile?: string;
-  metadata: KnowledgeNodeMetadata;
-  embedding?: number[];
+  content?: string;
+  tags: string[];
+  weight: number;
+  relatedCount: number;
   importance: number;
+  metadata: KnowledgeNodeMetadata;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export interface KnowledgeNodeMetadata {
-  tags: string[];
-  category?: WikiCategory;
-  visibility: 'public' | 'internal' | 'private';
-  stability: 'stable' | 'experimental' | 'deprecated';
-  version?: string;
-  custom?: Record<string, unknown>;
-}
-
 export interface KnowledgeEdge {
   id: string;
+  source: string;
   sourceId: string;
+  target: string;
   targetId: string;
-  type: KnowledgeEdgeType;
+  type: 'related' | 'dependsOn' | 'implements' | 'extends' | 'references';
   weight: number;
-  metadata: KnowledgeEdgeMetadata;
-  createdAt: Date;
-}
-
-export interface KnowledgeEdgeMetadata {
-  inferred: boolean;
-  confidence: number;
-  source?: string;
-  custom?: Record<string, unknown>;
+  label?: string;
 }
 
 export interface KnowledgeCluster {
@@ -65,131 +38,80 @@ export interface KnowledgeCluster {
   name: string;
   description?: string;
   nodeIds: string[];
-  centroid?: number[];
-  cohesion: number;
-  dominantType: KnowledgeNodeType;
-  tags: string[];
-  createdAt: Date;
+  centrality: number;
+  cohesion?: number;
 }
 
 export interface KnowledgeGraph {
-  id: string;
-  name: string;
-  description?: string;
-  nodes: Map<string, KnowledgeNode>;
-  edges: Map<string, KnowledgeEdge>;
-  clusters: Map<string, KnowledgeCluster>;
-  metadata: KnowledgeGraphMetadata;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface KnowledgeGraphMetadata {
-  nodeCount: number;
-  edgeCount: number;
-  clusterCount: number;
-  avgConnectivity: number;
-  maxDepth: number;
-  version: string;
-}
-
-export interface KnowledgeGraphQuery {
-  nodeId?: string;
-  nodeType?: KnowledgeNodeType;
-  edgeType?: KnowledgeEdgeType;
-  searchTerm?: string;
-  tags?: string[];
-  minImportance?: number;
-  maxDepth?: number;
-  limit?: number;
-  offset?: number;
-}
-
-export interface KnowledgeGraphQueryResult {
   nodes: KnowledgeNode[];
   edges: KnowledgeEdge[];
-  paths: KnowledgePath[];
-  total: number;
-}
-
-export interface KnowledgePath {
-  startNodeId: string;
-  endNodeId: string;
-  nodes: KnowledgeNode[];
-  edges: KnowledgeEdge[];
-  length: number;
-  weight: number;
-}
-
-export interface IKnowledgeGraphService {
-  build(pages: WikiPage[]): Promise<KnowledgeGraph>;
-  query(query: KnowledgeGraphQuery): Promise<KnowledgeGraphQueryResult>;
-  findRelated(nodeId: string, maxDepth?: number): Promise<KnowledgeNode[]>;
-  getLearningPath(startNodeId: string, endNodeId: string): Promise<LearningPath | null>;
-  recommend(context: RecommendationContext): Promise<Recommendation[]>;
-  export(format: 'json' | 'graphml' | 'gexf'): Promise<string>;
-  import(data: string, format: 'json' | 'graphml' | 'gexf'): Promise<KnowledgeGraph>;
+  clusters: KnowledgeCluster[];
+  metadata: {
+    totalNodes: number;
+    totalEdges: number;
+    totalClusters: number;
+    buildTime: Date;
+  };
 }
 
 export interface RecommendationContext {
   currentPageId?: string;
-  recentNodeIds?: string[];
-  searchTerms?: string[];
+  recentlyViewed?: string[];
+  searchQuery?: string;
   userRole?: string;
-  taskType?: 'learning' | 'development' | 'review' | 'debugging';
-  limit?: number;
-}
-
-export interface Recommendation {
-  node: KnowledgeNode;
-  score: number;
-  reason: RecommendationReason[];
-  relatedNodes: KnowledgeNode[];
 }
 
 export interface RecommendationReason {
-  type: 'related' | 'prerequisite' | 'frequently-accessed' | 'recently-updated' | 'high-importance';
-  description: string;
+  type: 'content' | 'structure' | 'usage' | 'similarity';
   weight: number;
+  description: string;
+}
+
+export interface Recommendation {
+  id: string;
+  nodeId: string;
+  score: number;
+  reason: string | RecommendationReason[];
+  type: 'related' | 'learning' | 'complementary';
+  weight?: number;
+}
+
+export interface LearningPathNode {
+  nodeId: string;
+  position: number;
+  estimatedTime: number;
+  prerequisites: string[];
 }
 
 export interface LearningPath {
   id: string;
   name: string;
   description?: string;
+  nodeIds: string[];
   nodes: LearningPathNode[];
-  estimatedTime?: number;
+  estimatedTime: number;
   difficulty: 'beginner' | 'intermediate' | 'advanced';
-  prerequisites: string[];
-  createdAt: Date;
 }
 
-export interface LearningPathNode {
-  node: KnowledgeNode;
-  order: number;
-  isOptional: boolean;
-  estimatedTime?: number;
-  description?: string;
+export interface KnowledgePath {
+  nodes: KnowledgeNode[];
+  edges: KnowledgeEdge[];
+  length: number;
+  weight: number;
 }
 
 export interface NodeRelation {
   sourceId: string;
   targetId: string;
-  type: KnowledgeEdgeType;
   strength: number;
-  bidirectional: boolean;
+  pathLength: number;
+  commonNeighbors: number;
 }
 
-export interface GraphExportOptions {
-  includeMetadata: boolean;
-  includeEmbeddings: boolean;
-  includeClusters: boolean;
-  format: 'json' | 'graphml' | 'gexf' | 'mermaid';
-  prettyPrint: boolean;
-}
-
-export interface GraphImportOptions {
-  mergeStrategy: 'replace' | 'merge' | 'append';
-  validateNodes: boolean;
-  validateEdges: boolean;
+export interface MitigationStrategy {
+  id: string;
+  type: 'avoid' | 'reduce' | 'transfer' | 'accept';
+  description: string;
+  priority: 'low' | 'medium' | 'high';
+  estimatedEffort: number;
 }

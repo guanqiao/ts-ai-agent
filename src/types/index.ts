@@ -219,6 +219,7 @@ export interface LLMConfig {
   baseUrl?: string;
   temperature?: number;
   maxTokens?: number;
+  caCert?: string;
 }
 
 export interface AgentMessage {

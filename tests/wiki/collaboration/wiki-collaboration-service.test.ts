@@ -216,6 +216,178 @@ describe('WikiPermissionService', () => {
       expect(permissions).not.toContain('write');
     });
   });
+
+  describe('assignRole', () => {
+    it('should assign a role to a user for a page', async () => {
+      const contributor = await collaborationService.addContributor({
+        name: 'Role Assign',
+        email: 'roleassign@example.com',
+        role: 'editor',
+        permissions: [],
+      });
+
+      await permissionService.assignRole('page-3', contributor.id, 'viewer');
+
+      const role = await permissionService.getRole('page-3', contributor.id);
+      expect(role).toBe('viewer');
+    });
+  });
+
+  describe('getRole', () => {
+    it('should return contributor role when no page-specific role', async () => {
+      const contributor = await collaborationService.addContributor({
+        name: 'Role Get',
+        email: 'roleget@example.com',
+        role: 'admin',
+        permissions: [],
+      });
+
+      const role = await permissionService.getRole('non-existent-page', contributor.id);
+      expect(role).toBe('admin');
+    });
+
+    it('should return viewer for non-existent user', async () => {
+      const role = await permissionService.getRole('page-1', 'non-existent-user');
+      expect(role).toBe('viewer');
+    });
+  });
+
+  describe('requirePermission', () => {
+    it('should return a permission checker function', async () => {
+      const contributor = await collaborationService.addContributor({
+        name: 'Require Perm',
+        email: 'requireperm@example.com',
+        role: 'editor',
+        permissions: [],
+      });
+
+      const checker = permissionService.requirePermission('write');
+      const hasPermission = await checker(contributor.id);
+      expect(hasPermission).toBe(true);
+    });
+
+    it('should return false for non-existent user', async () => {
+      const checker = permissionService.requirePermission('read');
+      const hasPermission = await checker('non-existent-user');
+      expect(hasPermission).toBe(false);
+    });
+  });
+
+  describe('hasAnyPermission', () => {
+    it('should return true when user has any of the permissions', async () => {
+      const contributor = await collaborationService.addContributor({
+        name: 'Any Perm',
+        email: 'anyperm@example.com',
+        role: 'editor',
+        permissions: [],
+      });
+
+      const hasAny = await permissionService.hasAnyPermission(contributor.id, ['admin', 'write']);
+      expect(hasAny).toBe(true);
+    });
+
+    it('should return false when user has none of the permissions', async () => {
+      const contributor = await collaborationService.addContributor({
+        name: 'No Perm',
+        email: 'noperm@example.com',
+        role: 'viewer',
+        permissions: [],
+      });
+
+      const hasAny = await permissionService.hasAnyPermission(contributor.id, ['admin', 'write']);
+      expect(hasAny).toBe(false);
+    });
+  });
+
+  describe('grantGlobalPermission', () => {
+    it('should grant global permission to user', async () => {
+      const contributor = await collaborationService.addContributor({
+        name: 'Global Perm',
+        email: 'globalperm@example.com',
+        role: 'viewer',
+        permissions: [],
+      });
+
+      await permissionService.grantGlobalPermission(contributor.id, 'write');
+    });
+  });
+
+  describe('revokeGlobalPermission', () => {
+    it('should revoke global permission from user', async () => {
+      const contributor = await collaborationService.addContributor({
+        name: 'Revoke Perm',
+        email: 'revokeperm@example.com',
+        role: 'editor',
+        permissions: [],
+      });
+
+      await permissionService.grantGlobalPermission(contributor.id, 'admin');
+      await permissionService.revokeGlobalPermission(contributor.id, 'admin');
+    });
+  });
+
+  describe('removePagePermissions', () => {
+    it('should remove all permissions for a page', async () => {
+      await permissionService.removePagePermissions('page-to-remove');
+    });
+  });
+
+  describe('getUserPagesWithPermission', () => {
+    it('should return pages where user has specific permission', async () => {
+      const contributor = await collaborationService.addContributor({
+        name: 'Pages Perm',
+        email: 'pagesperm@example.com',
+        role: 'editor',
+        permissions: [],
+      });
+
+      await permissionService.setPermission('user-page-1', contributor.id, ['write']);
+      await permissionService.setPermission('user-page-2', contributor.id, ['write']);
+
+      const pages = await permissionService.getUserPagesWithPermission(contributor.id, 'write');
+      expect(pages.length).toBeGreaterThanOrEqual(2);
+    });
+  });
+
+  describe('canManageUser', () => {
+    it('should return true when actor has higher role', async () => {
+      const owner = await collaborationService.addContributor({
+        name: 'Owner User',
+        email: 'owneruser@example.com',
+        role: 'owner',
+        permissions: [],
+      });
+
+      const viewer = await collaborationService.addContributor({
+        name: 'Viewer User',
+        email: 'vieweruser@example.com',
+        role: 'viewer',
+        permissions: [],
+      });
+
+      const canManage = await permissionService.canManageUser(owner.id, viewer.id);
+      expect(canManage).toBe(true);
+    });
+
+    it('should return false when actor has lower role', async () => {
+      const viewer = await collaborationService.addContributor({
+        name: 'Viewer User 2',
+        email: 'vieweruser2@example.com',
+        role: 'viewer',
+        permissions: [],
+      });
+
+      const owner = await collaborationService.addContributor({
+        name: 'Owner User 2',
+        email: 'owneruser2@example.com',
+        role: 'owner',
+        permissions: [],
+      });
+
+      const canManage = await permissionService.canManageUser(viewer.id, owner.id);
+      expect(canManage).toBe(false);
+    });
+  });
 });
 
 describe('WikiLockService', () => {

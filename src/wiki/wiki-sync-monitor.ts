@@ -12,6 +12,7 @@ import {
   SuggestedUpdate,
   WikiPage,
 } from './types';
+import { ChangeImpactAnalyzer, EnhancedChangeImpact } from './impact';
 
 export class WikiSyncMonitor extends EventEmitter implements IWikiSyncMonitor {
   private projectPath: string;
@@ -20,12 +21,14 @@ export class WikiSyncMonitor extends EventEmitter implements IWikiSyncMonitor {
   private reminderInterval: NodeJS.Timeout | null = null;
   private reminderConfig: ReminderConfig | null = null;
   private syncedPages: Map<string, string> = new Map();
+  private changeImpactAnalyzer: ChangeImpactAnalyzer;
 
   constructor(projectPath: string) {
     super();
     this.projectPath = projectPath;
     this.gitService = new GitService();
     this.incrementalUpdater = new IncrementalUpdater(path.join(projectPath, '.wiki', 'snapshots'));
+    this.changeImpactAnalyzer = new ChangeImpactAnalyzer(projectPath);
   }
 
   async checkSyncStatus(): Promise<SyncStatus> {
@@ -205,6 +208,14 @@ export class WikiSyncMonitor extends EventEmitter implements IWikiSyncMonitor {
       affectedModules,
       suggestedUpdates,
     };
+  }
+
+  async getEnhancedChangeImpact(
+    filePath: string,
+    changeType: 'added' | 'modified' | 'removed',
+    changeDescription?: string
+  ): Promise<EnhancedChangeImpact> {
+    return this.changeImpactAnalyzer.analyzeFullImpact(filePath, changeType, changeDescription);
   }
 
   async markAsSynced(pageIds: string[]): Promise<void> {

@@ -1,367 +1,195 @@
-import {
-  RiskAssessment,
-  RiskFactor,
-  RiskLevel,
-  MitigationStrategy,
-  IRiskAssessmentService,
-  ImpactItem,
-} from './types';
+import { RiskAssessment, RiskFactor, RiskLevel, ImpactItem } from './types';
 
-export class RiskAssessmentService implements IRiskAssessmentService {
-  constructor() {}
-
-  async calculateRiskScore(impacts: ImpactItem[]): Promise<number> {
-    if (impacts.length === 0) return 0;
-
-    let totalScore = 0;
-    const severityWeights = {
-      critical: 4,
-      high: 3,
-      medium: 2,
-      low: 1,
-    };
-
-    for (const impact of impacts) {
-      const severityWeight = severityWeights[impact.severity];
-      const typeMultiplier = impact.type === 'direct' ? 1.5 : 1.0;
-      const confidenceFactor = impact.confidence;
-
-      const impactScore = severityWeight * typeMultiplier * confidenceFactor * 10;
-      totalScore += impactScore;
-
-      if (impact.metadata.breakingChange) {
-        totalScore += 20;
-      }
-    }
-
-    const normalizedScore = Math.min(100, totalScore / Math.sqrt(impacts.length));
-
-    return Math.round(normalizedScore);
-  }
-
-  async identifyRiskFactors(impacts: ImpactItem[]): Promise<RiskFactor[]> {
-    const riskFactors: RiskFactor[] = [];
-
-    const breakingChanges = impacts.filter((i) => i.metadata.breakingChange);
-    if (breakingChanges.length > 0) {
-      riskFactors.push(
-        this.createRiskFactor(
-          'breaking-changes',
-          'Breaking Changes Detected',
-          `${breakingChanges.length} breaking change(s) detected that may require updates in dependent code`,
-          'breaking-change',
-          breakingChanges.length >= 3
-            ? 'critical'
-            : breakingChanges.length >= 2
-              ? 'high'
-              : 'medium',
-          0.9,
-          breakingChanges.map((i) => i.targetName)
-        )
-      );
-    }
-
-    const highSeverityImpacts = impacts.filter(
-      (i) => i.severity === 'high' || i.severity === 'critical'
-    );
-    if (highSeverityImpacts.length > 0) {
-      riskFactors.push(
-        this.createRiskFactor(
-          'high-severity-impacts',
-          'High Severity Impacts',
-          `${highSeverityImpacts.length} high severity impact(s) identified`,
-          'dependency',
-          highSeverityImpacts.length >= 5
-            ? 'critical'
-            : highSeverityImpacts.length >= 3
-              ? 'high'
-              : 'medium',
-          0.85,
-          highSeverityImpacts.map((i) => i.targetName)
-        )
-      );
-    }
-
-    const apiImpacts = impacts.filter((i) => i.targetType === 'api');
-    if (apiImpacts.length > 0) {
-      riskFactors.push(
-        this.createRiskFactor(
-          'api-changes',
-          'API Changes',
-          `${apiImpacts.length} API-related impact(s) detected`,
-          'dependency',
-          apiImpacts.length >= 3 ? 'high' : 'medium',
-          0.8,
-          apiImpacts.map((i) => i.targetName)
-        )
-      );
-    }
-
-    const docImpacts = impacts.filter(
-      (i) => i.targetType === 'page' && i.affectedSections.length > 0
-    );
-    if (docImpacts.length > 0) {
-      riskFactors.push(
-        this.createRiskFactor(
-          'documentation-drift',
-          'Documentation Drift',
-          `${docImpacts.length} documentation page(s) may become outdated`,
-          'documentation',
-          'medium',
-          0.7,
-          docImpacts.map((i) => i.targetName)
-        )
-      );
-    }
-
-    const moduleImpacts = impacts.filter((i) => i.targetType === 'module');
-    if (moduleImpacts.length > 0) {
-      riskFactors.push(
-        this.createRiskFactor(
-          'module-impact',
-          'Module-Level Impact',
-          `${moduleImpacts.length} module(s) affected by changes`,
-          'dependency',
-          moduleImpacts.length >= 3 ? 'high' : 'medium',
-          0.75,
-          moduleImpacts.map((i) => i.targetName)
-        )
-      );
-    }
-
-    const lowConfidenceImpacts = impacts.filter((i) => i.confidence < 0.6);
-    if (lowConfidenceImpacts.length > impacts.length * 0.3) {
-      riskFactors.push(
-        this.createRiskFactor(
-          'analysis-uncertainty',
-          'Analysis Uncertainty',
-          'Impact analysis has lower confidence due to limited information',
-          'testing',
-          'low',
-          0.5,
-          []
-        )
-      );
-    }
-
-    return riskFactors;
-  }
-
-  async generateMitigation(riskFactors: RiskFactor[]): Promise<MitigationStrategy[]> {
-    const strategies: MitigationStrategy[] = [];
-
-    for (const factor of riskFactors) {
-      const strategy = this.createMitigationForFactor(factor);
-      if (strategy) {
-        strategies.push(strategy);
-      }
-    }
-
-    if (riskFactors.some((f) => f.severity === 'critical' || f.severity === 'high')) {
-      strategies.push(this.createGeneralMitigation(riskFactors));
-    }
-
-    return strategies;
-  }
-
-  async assessOverallRisk(impacts: ImpactItem[]): Promise<RiskAssessment> {
-    const riskScore = await this.calculateRiskScore(impacts);
-    const riskFactors = await this.identifyRiskFactors(impacts);
-    const mitigationStrategies = await this.generateMitigation(riskFactors);
-
-    const overallRisk = this.determineOverallRiskLevel(riskScore, riskFactors);
-    const confidence = this.calculateOverallConfidence(impacts, riskFactors);
-    const summary = this.generateSummary(overallRisk, riskScore, riskFactors);
+export class RiskAssessmentService {
+  assessRisk(
+    directImpacts: ImpactItem[],
+    indirectImpacts: ImpactItem[],
+    changeType: 'added' | 'modified' | 'removed'
+  ): RiskAssessment {
+    const factors = this.identifyRiskFactors(directImpacts, indirectImpacts, changeType);
+    const riskScore = this.calculateRiskScore(factors);
+    const overallRisk = this.mapScoreToRiskLevel(riskScore);
+    const affectedAreas = this.identifyAffectedAreas([...directImpacts, ...indirectImpacts]);
+    const timeframe = this.determineTimeframe(changeType, factors);
+    const recommendation = this.generateMitigationRecommendation(factors, overallRisk);
 
     return {
+      id: `risk-${Date.now()}`,
       overallRisk,
       riskScore,
-      riskFactors,
-      mitigationStrategies,
-      confidence,
-      summary,
+      factors,
+      affectedAreas,
+      timeframe,
+      recommendation,
     };
   }
 
-  private createRiskFactor(
-    id: string,
-    name: string,
-    description: string,
-    category: RiskFactor['category'],
-    severity: RiskLevel,
-    probability: number,
-    affectedItems: string[]
-  ): RiskFactor {
-    return {
-      id: `rf-${id}`,
-      name,
-      description,
-      severity,
-      probability,
-      impact: this.calculateImpact(severity),
-      category,
-      affectedItems,
-      evidence: affectedItems.slice(0, 5).map((item) => `Affects: ${item}`),
-    };
+  calculateRiskScore(factors: RiskFactor[]): number {
+    if (factors.length === 0) {
+      return 0;
+    }
+
+    let totalScore = 0;
+    let totalWeight = 0;
+
+    for (const factor of factors) {
+      const severityScore = this.getSeverityScore(factor.severity);
+      const weightedScore = severityScore * factor.confidence;
+      totalScore += weightedScore;
+      totalWeight += factor.confidence;
+    }
+
+    return totalWeight > 0 ? Math.round((totalScore / totalWeight) * 100) / 100 : 0;
   }
 
-  private calculateImpact(severity: RiskLevel): number {
-    const impactMap: Record<RiskLevel, number> = {
-      critical: 1.0,
-      high: 0.75,
-      medium: 0.5,
-      low: 0.25,
-    };
-    return impactMap[severity];
+  identifyRiskFactors(
+    directImpacts: ImpactItem[],
+    indirectImpacts: ImpactItem[],
+    changeType: 'added' | 'modified' | 'removed'
+  ): RiskFactor[] {
+    const factors: RiskFactor[] = [];
+    const allImpacts = [...directImpacts, ...indirectImpacts];
+
+    if (changeType === 'removed') {
+      factors.push({
+        id: `factor-${Date.now()}-1`,
+        type: 'breaking-change',
+        description: '删除文件可能导致其他组件引用失败',
+        severity: 'high',
+        confidence: 0.9,
+        mitigation: '检查所有引用该文件的地方并进行相应修改',
+      });
+    }
+
+    const highImpactCount = allImpacts.filter(item => item.impactLevel === 'high').length;
+    if (highImpactCount > 2) {
+      factors.push({
+        id: `factor-${Date.now()}-2`,
+        type: 'breaking-change',
+        description: '多个高影响项目变更',
+        severity: 'high',
+        confidence: 0.8,
+        mitigation: '全面测试所有受影响的功能',
+      });
+    }
+
+    const testImpacts = allImpacts.filter(item => item.type === 'test');
+    if (testImpacts.length > 0) {
+      factors.push({
+        id: `factor-${Date.now()}-3`,
+        type: 'maintenance',
+        description: '测试文件受影响',
+        severity: 'medium',
+        confidence: 0.7,
+        mitigation: '更新相关测试用例',
+      });
+    }
+
+    const documentImpacts = allImpacts.filter(item => item.type === 'document');
+    if (documentImpacts.length > 0) {
+      factors.push({
+        id: `factor-${Date.now()}-4`,
+        type: 'maintenance',
+        description: '文档受影响',
+        severity: 'low',
+        confidence: 0.6,
+        mitigation: '更新相关文档',
+      });
+    }
+
+    if (changeType === 'modified' && directImpacts.some(item => item.impactLevel === 'high')) {
+      factors.push({
+        id: `factor-${Date.now()}-5`,
+        type: 'breaking-change',
+        description: '修改核心文件',
+        severity: 'medium',
+        confidence: 0.75,
+        mitigation: '进行回归测试',
+      });
+    }
+
+    return factors;
   }
 
-  private createMitigationForFactor(factor: RiskFactor): MitigationStrategy | null {
-    const mitigations: Record<string, () => MitigationStrategy> = {
-      'breaking-changes': () => ({
-        id: `ms-${factor.id}`,
-        name: 'Breaking Change Migration',
-        description: 'Plan and execute migration for breaking changes',
-        priority: 'urgent',
-        effort: 'high',
-        riskReduction: 0.6,
-        steps: [
-          { order: 1, action: 'Identify all affected components', automated: false },
-          { order: 2, action: 'Create migration guide', automated: false },
-          { order: 3, action: 'Update dependent code', automated: false },
-          { order: 4, action: 'Run integration tests', automated: true },
-        ],
-      }),
-      'high-severity-impacts': () => ({
-        id: `ms-${factor.id}`,
-        name: 'High Severity Impact Review',
-        description: 'Review and address high severity impacts',
-        priority: 'high',
-        effort: 'medium',
-        riskReduction: 0.5,
-        steps: [
-          { order: 1, action: 'Review each high severity impact', automated: false },
-          { order: 2, action: 'Prioritize remediation efforts', automated: false },
-          { order: 3, action: 'Implement fixes', automated: false },
-          { order: 4, action: 'Verify fixes with tests', automated: true },
-        ],
-      }),
-      'api-changes': () => ({
-        id: `ms-${factor.id}`,
-        name: 'API Change Documentation',
-        description: 'Document and communicate API changes',
-        priority: 'high',
-        effort: 'medium',
-        riskReduction: 0.4,
-        steps: [
-          { order: 1, action: 'Update API documentation', automated: false },
-          { order: 2, action: 'Generate changelog entry', automated: true },
-          { order: 3, action: 'Notify API consumers', automated: true },
-        ],
-      }),
-      'documentation-drift': () => ({
-        id: `ms-${factor.id}`,
-        name: 'Documentation Update',
-        description: 'Update affected documentation pages',
-        priority: 'medium',
-        effort: 'low',
-        riskReduction: 0.3,
-        steps: [
-          { order: 1, action: 'Review outdated sections', automated: false },
-          { order: 2, action: 'Update content', automated: false },
-          { order: 3, action: 'Verify accuracy', automated: false },
-        ],
-      }),
-      'module-impact': () => ({
-        id: `ms-${factor.id}`,
-        name: 'Module Impact Assessment',
-        description: 'Assess and address module-level impacts',
-        priority: 'medium',
-        effort: 'medium',
-        riskReduction: 0.35,
-        steps: [
-          { order: 1, action: 'Analyze module dependencies', automated: true },
-          { order: 2, action: 'Update affected modules', automated: false },
-          { order: 3, action: 'Run module tests', automated: true },
-        ],
-      }),
-      'analysis-uncertainty': () => ({
-        id: `ms-${factor.id}`,
-        name: 'Enhanced Analysis',
-        description: 'Perform additional analysis to improve confidence',
-        priority: 'low',
-        effort: 'low',
-        riskReduction: 0.2,
-        steps: [
-          { order: 1, action: 'Review code changes manually', automated: false },
-          { order: 2, action: 'Consult with team members', automated: false },
-          { order: 3, action: 'Run additional checks', automated: true },
-        ],
-      }),
-    };
-
-    const creator = mitigations[factor.id.replace('rf-', '')];
-    return creator ? creator() : null;
+  generateMitigation(factors: RiskFactor[]): string[] {
+    return factors.map(factor => factor.mitigation);
   }
 
-  private createGeneralMitigation(riskFactors: RiskFactor[]): MitigationStrategy {
-    const highPriorityCount = riskFactors.filter(
-      (f) => f.severity === 'critical' || f.severity === 'high'
-    ).length;
-
-    return {
-      id: 'ms-general',
-      name: 'Comprehensive Risk Review',
-      description: 'Conduct comprehensive review of all identified risks',
-      priority: highPriorityCount > 2 ? 'urgent' : 'high',
-      effort: 'high',
-      riskReduction: 0.5,
-      steps: [
-        { order: 1, action: 'Review all risk factors', automated: false },
-        { order: 2, action: 'Create action plan', automated: false },
-        { order: 3, action: 'Assign responsibilities', automated: false },
-        { order: 4, action: 'Set up monitoring', automated: true },
-        { order: 5, action: 'Schedule follow-up review', automated: true },
-      ],
-    };
+  assessOverallRisk(impacts: ImpactItem[]): RiskLevel {
+    const factors = this.identifyRiskFactors(impacts, [], 'modified');
+    const score = this.calculateRiskScore(factors);
+    return this.mapScoreToRiskLevel(score);
   }
 
-  private determineOverallRiskLevel(riskScore: number, riskFactors: RiskFactor[]): RiskLevel {
-    if (riskFactors.some((f) => f.severity === 'critical')) return 'critical';
-    if (riskScore >= 70 || riskFactors.filter((f) => f.severity === 'high').length >= 2)
+  private getSeverityScore(severity: RiskFactor['severity']): number {
+    switch (severity) {
+      case 'high':
+        return 3;
+      case 'medium':
+        return 2;
+      case 'low':
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
+  private mapScoreToRiskLevel(score: number): RiskLevel {
+    if (score >= 2.5) {
+      return 'critical';
+    } else if (score >= 1.8) {
       return 'high';
-    if (riskScore >= 40 || riskFactors.some((f) => f.severity === 'high')) return 'medium';
-    return 'low';
+    } else if (score >= 1.2) {
+      return 'medium';
+    } else {
+      return 'low';
+    }
   }
 
-  private calculateOverallConfidence(impacts: ImpactItem[], riskFactors: RiskFactor[]): number {
-    if (impacts.length === 0) return 0.5;
+  private identifyAffectedAreas(impacts: ImpactItem[]): string[] {
+    const areas = new Set<string>();
 
-    const avgImpactConfidence = impacts.reduce((sum, i) => sum + i.confidence, 0) / impacts.length;
-    const avgFactorProbability =
-      riskFactors.length > 0
-        ? riskFactors.reduce((sum, f) => sum + f.probability, 0) / riskFactors.length
-        : 0.5;
+    for (const impact of impacts) {
+      const area = this.extractAreaFromPath(impact.path);
+      if (area) {
+        areas.add(area);
+      }
+      areas.add(impact.type);
+    }
 
-    return avgImpactConfidence * 0.6 + avgFactorProbability * 0.4;
+    return Array.from(areas);
   }
 
-  private generateSummary(
-    overallRisk: RiskLevel,
-    riskScore: number,
-    riskFactors: RiskFactor[]
-  ): string {
-    const riskLevelText = {
-      critical: 'Critical',
-      high: 'High',
-      medium: 'Medium',
-      low: 'Low',
-    }[overallRisk];
+  private determineTimeframe(
+    changeType: 'added' | 'modified' | 'removed',
+    factors: RiskFactor[]
+  ): 'immediate' | 'short-term' | 'long-term' {
+    if (changeType === 'removed' || factors.some(f => f.severity === 'high')) {
+      return 'immediate';
+    } else if (factors.some(f => f.severity === 'medium')) {
+      return 'short-term';
+    } else {
+      return 'long-term';
+    }
+  }
 
-    const factorSummary =
-      riskFactors.length > 0
-        ? `Identified ${riskFactors.length} risk factor(s): ${riskFactors.map((f) => f.name).join(', ')}.`
-        : 'No significant risk factors identified.';
+  private generateMitigationRecommendation(_factors: RiskFactor[], overallRisk: RiskLevel): string {
+    if (overallRisk === 'critical') {
+      return '立即进行全面测试，考虑实施回滚计划，通知所有相关团队成员';
+    } else if (overallRisk === 'high') {
+      return '进行详细测试，更新相关文档，通知受影响的团队';
+    } else if (overallRisk === 'medium') {
+      return '进行常规测试，更新相关文档';
+    } else {
+      return '进行基本测试，监控系统运行状况';
+    }
+  }
 
-    return `Overall risk level: ${riskLevelText} (Score: ${riskScore}/100). ${factorSummary}`;
+  private extractAreaFromPath(filePath: string): string | null {
+    const parts = filePath.split('/');
+    if (parts.length > 1) {
+      return parts[0];
+    }
+    return null;
   }
 }

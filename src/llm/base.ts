@@ -7,6 +7,8 @@ import {
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { RunnableSequence } from '@langchain/core/runnables';
 import { LLMConfig, AgentMessage, AgentResult, AgentContext } from '../types';
+import * as fs from 'fs';
+import * as https from 'https';
 
 export class LLMService {
   private config: LLMConfig;
@@ -17,16 +19,29 @@ export class LLMService {
   }
 
   async initialize(): Promise<void> {
+    let httpAgent: https.Agent | undefined;
+
+    if (this.config.caCert) {
+      const caCertContent = fs.readFileSync(this.config.caCert, 'utf-8');
+      httpAgent = new https.Agent({
+        ca: caCertContent,
+      });
+    }
+
+    const configuration: Record<string, unknown> = {};
+    if (this.config.baseUrl) {
+      configuration.baseURL = this.config.baseUrl;
+    }
+    if (httpAgent) {
+      configuration.httpAgent = httpAgent;
+    }
+
     this.model = new ChatOpenAI({
       modelName: this.config.model || 'gpt-4',
       temperature: this.config.temperature ?? 0.7,
       maxTokens: this.config.maxTokens ?? 4096,
       openAIApiKey: this.config.apiKey || process.env.OPENAI_API_KEY,
-      configuration: this.config.baseUrl
-        ? {
-            baseURL: this.config.baseUrl,
-          }
-        : undefined,
+      configuration: Object.keys(configuration).length > 0 ? configuration : undefined,
     });
   }
 
