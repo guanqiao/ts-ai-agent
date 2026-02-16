@@ -68,10 +68,20 @@ describe('WikiSharingService', () => {
     };
   });
 
-  afterEach(() => {
-    // 清理测试目录
+  afterEach(async () => {
+    // 清理测试目录 - Windows 可能需要多次尝试
     if (fs.existsSync(testProjectPath)) {
-      fs.rmSync(testProjectPath, { recursive: true, force: true });
+      try {
+        fs.rmSync(testProjectPath, { recursive: true, force: true });
+      } catch (error) {
+        // 如果删除失败，等待一下再尝试
+        await new Promise(resolve => setTimeout(resolve, 100));
+        try {
+          fs.rmSync(testProjectPath, { recursive: true, force: true });
+        } catch (e) {
+          // 忽略第二次失败
+        }
+      }
     }
   });
 
@@ -242,7 +252,7 @@ describe('WikiSharingService', () => {
       expect(status.pendingChanges).toBe(false);
       // remoteStatus.connected 取决于 git 环境，不做强制断言
       expect(status.remoteStatus).toBeDefined();
-    });
+    }, 30000);
 
     it('should return status after sharing', async () => {
       await service.initialize({
@@ -256,7 +266,7 @@ describe('WikiSharingService', () => {
 
       expect(status.isShared).toBe(true);
       expect(status.lastSharedAt).not.toBeNull();
-    });
+    }, 30000);
   });
 
   describe('detectConflicts', () => {

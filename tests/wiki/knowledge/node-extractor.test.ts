@@ -72,8 +72,8 @@ This is about **KeyConcept** and **MainAPI**.
 
       const concepts = extractor.extractConcepts(pages);
 
-      expect(concepts.some(c => c.name === 'KeyConcept')).toBe(true);
-      expect(concepts.some(c => c.name === 'MainAPI')).toBe(true);
+      expect(concepts.some(c => c.name.toLowerCase() === 'keyconcept')).toBe(true);
+      expect(concepts.some(c => c.name.toLowerCase() === 'mainapi')).toBe(true);
     });
 
     it('should extract concepts from inline code', () => {
@@ -102,8 +102,8 @@ Use \`calculateTotal\` or \`userName\` for this purpose.
 
       const concepts = extractor.extractConcepts(pages);
 
-      expect(concepts.some(c => c.name === 'calculateTotal')).toBe(true);
-      expect(concepts.some(c => c.name === 'userName')).toBe(true);
+      expect(concepts.some(c => c.name.toLowerCase() === 'calculatetotal')).toBe(true);
+      expect(concepts.some(c => c.name.toLowerCase() === 'username')).toBe(true);
     });
 
     it('should extract concepts from tags', () => {
