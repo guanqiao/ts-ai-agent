@@ -266,6 +266,7 @@ describe('Tool Types', () => {
       description: 'Test description',
       parameters: [],
       execute: async () => ({ success: true }),
+      validateParameters: () => ({ valid: true, errors: [] }),
     };
 
     expect(tool.name).toBe('test_tool');

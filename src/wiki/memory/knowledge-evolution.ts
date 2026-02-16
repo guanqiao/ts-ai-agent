@@ -1,7 +1,6 @@
 import { WikiSearchMemory } from './wiki-search-memory';
 import { InteractionHistory } from './interaction-history';
 import { MemoryEntry, MemoryEntryType } from './types';
-import { InteractionType } from './interaction-types';
 
 export interface KnowledgeUpdateOptions {
   newContent: string;
@@ -273,14 +272,16 @@ export class KnowledgeEvolution {
       limit: 20,
     });
 
-    for (const interaction of failedInteractions) {
-      if (
-        interaction.output.toLowerCase().includes('do not have') ||
-        interaction.output.toLowerCase().includes('no information') ||
-        interaction.output.toLowerCase().includes('not found')
-      ) {
-        const keywords = this.extractKeywords(interaction.input);
-        gaps.push(`Missing knowledge about: ${keywords.join(', ')}`);
+    if (failedInteractions && Array.isArray(failedInteractions)) {
+      for (const interaction of failedInteractions) {
+        if (
+          interaction.output.toLowerCase().includes('do not have') ||
+          interaction.output.toLowerCase().includes('no information') ||
+          interaction.output.toLowerCase().includes('not found')
+        ) {
+          const keywords = this.extractKeywords(interaction.input);
+          gaps.push(`Missing knowledge about: ${keywords.join(', ')}`);
+        }
       }
     }
 

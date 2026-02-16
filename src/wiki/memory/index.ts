@@ -28,3 +28,14 @@ export {
   InteractionStats,
   InteractionHistoryConfig,
 } from './interaction-types';
+export { KnowledgeEvolution } from './knowledge-evolution';
+export type {
+  KnowledgeUpdateOptions,
+  CleanupOptions,
+  BoostOptions,
+  EvolutionResult,
+  KnowledgeUpdateResult,
+  CleanupResult,
+  ConsolidationResult,
+  BoostResult,
+} from './knowledge-evolution';
