@@ -1,12 +1,6 @@
 import * as crypto from 'crypto';
 import { ParsedFile, CodeSymbol } from '../types';
-import {
-  IChangeDetector,
-  ChangeSet,
-  FileChange,
-  ChangeType,
-  ChangeSummary,
-} from './types';
+import { IChangeDetector, ChangeSet, FileChange, ChangeType, ChangeSummary } from './types';
 
 export class ChangeDetector implements IChangeDetector {
   detect(oldFiles: ParsedFile[], newFiles: ParsedFile[]): ChangeSet {
@@ -52,10 +46,7 @@ export class ChangeDetector implements IChangeDetector {
     };
   }
 
-  detectFileChange(
-    oldFile: ParsedFile | null,
-    newFile: ParsedFile | null
-  ): FileChange | null {
+  detectFileChange(oldFile: ParsedFile | null, newFile: ParsedFile | null): FileChange | null {
     if (!oldFile && !newFile) return null;
 
     if (!oldFile) {
@@ -135,10 +126,7 @@ export class ChangeDetector implements IChangeDetector {
     return result;
   }
 
-  detectRename(
-    oldFiles: ParsedFile[],
-    newFiles: ParsedFile[]
-  ): Map<string, string> {
+  detectRename(oldFiles: ParsedFile[], newFiles: ParsedFile[]): Map<string, string> {
     const renames = new Map<string, string>();
 
     const oldContentMap = new Map<string, ParsedFile>();
@@ -163,10 +151,7 @@ export class ChangeDetector implements IChangeDetector {
     return renames;
   }
 
-  getAffectedFiles(
-    changeSet: ChangeSet,
-    dependencyGraph: Map<string, Set<string>>
-  ): string[] {
+  getAffectedFiles(changeSet: ChangeSet, dependencyGraph: Map<string, Set<string>>): string[] {
     const affected = new Set<string>();
 
     for (const change of changeSet.files) {
@@ -274,8 +259,7 @@ export class ChangeDetector implements IChangeDetector {
       summary.deletedSymbols += change.symbols.deleted.length;
     }
 
-    summary.totalSymbols =
-      summary.addedSymbols + summary.modifiedSymbols + summary.deletedSymbols;
+    summary.totalSymbols = summary.addedSymbols + summary.modifiedSymbols + summary.deletedSymbols;
 
     return summary;
   }

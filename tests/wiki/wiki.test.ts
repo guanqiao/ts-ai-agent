@@ -1,6 +1,7 @@
 import { WikiStorage } from '../../src/wiki/wiki-storage';
 import { WikiKnowledgeBase } from '../../src/wiki/wiki-knowledge-base';
-import { WikiPage, WikiDocument, DocumentFormat, Language } from '../../src/wiki/types';
+import { WikiPage, WikiDocument } from '../../src/wiki/types';
+import { DocumentFormat, Language } from '../../src/types';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -267,7 +268,7 @@ describe('WikiKnowledgeBase', () => {
 
       await knowledgeBase.index(document);
 
-      const results = knowledgeBase.search(['test']);
+      const results = await knowledgeBase.search(['test']);
       expect(results.length).toBeGreaterThan(0);
     });
   });
@@ -374,7 +375,7 @@ describe('WikiKnowledgeBase', () => {
 
       await knowledgeBase.index(document);
 
-      const results = knowledgeBase.search(['api']);
+      const results = await knowledgeBase.search(['api']);
 
       expect(results.length).toBeGreaterThan(0);
       expect(results[0].title).toBe('API Reference');

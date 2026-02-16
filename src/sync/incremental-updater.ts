@@ -36,11 +36,7 @@ export class IncrementalUpdater implements IIncrementalUpdater {
     return updatedDocument;
   }
 
-  mergeContent(
-    oldContent: string,
-    newContent: string,
-    changeType: ChangeType
-  ): string {
+  mergeContent(oldContent: string, newContent: string, changeType: ChangeType): string {
     switch (changeType) {
       case 'added':
         return this.mergeAddedContent(oldContent, newContent);
@@ -183,10 +179,7 @@ export class IncrementalUpdater implements IIncrementalUpdater {
     fileChange: { path: string; changeType: ChangeType; newContent?: string }
   ): Promise<string> {
     const fileName = path.basename(fileChange.path);
-    const sectionPattern = new RegExp(
-      `## ${this.escapeRegExp(fileName)}[\\s\\S]*?(?=## |$)`,
-      'g'
-    );
+    const sectionPattern = new RegExp(`## ${this.escapeRegExp(fileName)}[\\s\\S]*?(?=## |$)`, 'g');
 
     switch (fileChange.changeType) {
       case 'added':
@@ -317,7 +310,10 @@ export class IncrementalUpdater implements IIncrementalUpdater {
   private computeFileHash(file: ParsedFile): string {
     const content = file.rawContent || '';
     const symbols = file.symbols.map((s) => `${s.name}:${s.kind}`).join(',');
-    return crypto.createHash('md5').update(content + symbols).digest('hex');
+    return crypto
+      .createHash('md5')
+      .update(content + symbols)
+      .digest('hex');
   }
 
   private generateSnapshotId(commitHash: string): string {

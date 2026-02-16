@@ -32,10 +32,14 @@ export class TSDGenerator {
     const stat = fs.statSync(input);
 
     if (language === Language.Java) {
-      return stat.isDirectory() ? await this.javaParser.parseDirectory(input) : this.wrapSingleFile(await this.javaParser.parse(input), Language.Java);
+      return stat.isDirectory()
+        ? await this.javaParser.parseDirectory(input)
+        : this.wrapSingleFile(await this.javaParser.parse(input), Language.Java);
     }
 
-    return stat.isDirectory() ? await this.tsParser.parseDirectory(input) : this.wrapSingleFile(await this.tsParser.parse(input), Language.TypeScript);
+    return stat.isDirectory()
+      ? await this.tsParser.parseDirectory(input)
+      : this.wrapSingleFile(await this.tsParser.parse(input), Language.TypeScript);
   }
 
   async generate(options: GeneratorOptions): Promise<GeneratedDocument> {
@@ -91,7 +95,10 @@ export class TSDGenerator {
   }
 }
 
-export async function generateDocumentation(options: GeneratorOptions, llmConfig: LLMConfig): Promise<string> {
+export async function generateDocumentation(
+  options: GeneratorOptions,
+  llmConfig: LLMConfig
+): Promise<string> {
   const generator = new TSDGenerator(llmConfig);
   const document = await generator.generate(options);
   return document.raw;

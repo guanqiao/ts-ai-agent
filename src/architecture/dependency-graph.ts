@@ -1,11 +1,6 @@
 import * as path from 'path';
 import { ParsedFile, SymbolKind, CodeSymbol } from '../types';
-import {
-  DependencyGraph,
-  DependencyNode,
-  DependencyEdge,
-  IDependencyGraphBuilder,
-} from './types';
+import { DependencyGraph, DependencyNode, DependencyEdge, IDependencyGraphBuilder } from './types';
 
 export class DependencyGraphBuilder implements IDependencyGraphBuilder {
   build(files: ParsedFile[]): DependencyGraph {
@@ -127,7 +122,10 @@ export class DependencyGraphBuilder implements IDependencyGraphBuilder {
       }
     }
 
-    return hubs.sort((a, b) => ((b.metadata?.connections as number) ?? 0) - ((a.metadata?.connections as number) ?? 0));
+    return hubs.sort(
+      (a, b) =>
+        ((b.metadata?.connections as number) ?? 0) - ((a.metadata?.connections as number) ?? 0)
+    );
   }
 
   getDependencies(graph: DependencyGraph, nodeId: string): DependencyNode[] {

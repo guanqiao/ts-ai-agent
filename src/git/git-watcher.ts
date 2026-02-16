@@ -109,10 +109,7 @@ export class GitWatcher extends EventEmitter implements IGitWatcher {
     }
 
     if (currentCommit.hash !== this.lastHeadHash) {
-      const changedFiles = await this.gitService.getChangedFiles(
-        this.repoPath,
-        this.lastHeadHash
-      );
+      const changedFiles = await this.gitService.getChangedFiles(this.repoPath, this.lastHeadHash);
 
       const event: GitWatcherEvent = {
         type: 'head-change',

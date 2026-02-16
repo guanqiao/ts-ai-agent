@@ -31,11 +31,7 @@ export class ArchitectureAnalyzer implements IArchitectureAnalyzer {
     const businessFlows = this.identifyCoreFlows(files);
     const technicalDecisions = this.detectDecisions(files);
     const metrics = this.calculateMetrics(modules, dependencyGraph);
-    const recommendations = this.generateRecommendations(
-      pattern,
-      metrics,
-      dependencyGraph
-    );
+    const recommendations = this.generateRecommendations(pattern, metrics, dependencyGraph);
 
     return {
       pattern,
@@ -231,9 +227,7 @@ export class ArchitectureAnalyzer implements IArchitectureAnalyzer {
       for (const symbol of module.symbols) {
         if (symbol.dependencies) {
           for (const dep of symbol.dependencies) {
-            const depModule = modules.find((m) =>
-              m.symbols.some((s) => s.name === dep.name)
-            );
+            const depModule = modules.find((m) => m.symbols.some((s) => s.name === dep.name));
             if (depModule === module) {
               internalConnections++;
             } else if (depModule) {
@@ -264,9 +258,7 @@ export class ArchitectureAnalyzer implements IArchitectureAnalyzer {
 
     for (const module of layer.modules) {
       for (const dep of module.dependencies) {
-        const depLayer = allLayers.find((l) =>
-          l.modules.some((m) => m.name === dep)
-        );
+        const depLayer = allLayers.find((l) => l.modules.some((m) => m.name === dep));
         if (depLayer && depLayer.name !== layer.name && !dependencies.includes(depLayer.name)) {
           dependencies.push(depLayer.name);
         }
@@ -317,7 +309,13 @@ export class ArchitectureAnalyzer implements IArchitectureAnalyzer {
     symbol: CodeSymbol,
     files: ParsedFile[],
     visited: Set<string>
-  ): { id: string; name: string; type: 'function' | 'class' | 'module'; filePath: string; nextSteps: string[] }[] {
+  ): {
+    id: string;
+    name: string;
+    type: 'function' | 'class' | 'module';
+    filePath: string;
+    nextSteps: string[];
+  }[] {
     const key = `${symbol.name}`;
     if (visited.has(key)) return [];
     visited.add(key);
@@ -325,12 +323,21 @@ export class ArchitectureAnalyzer implements IArchitectureAnalyzer {
     const file = files.find((f) => f.symbols.includes(symbol));
     if (!file) return [];
 
-    const steps: { id: string; name: string; type: 'function' | 'class' | 'module'; filePath: string; nextSteps: string[] }[] = [];
+    const steps: {
+      id: string;
+      name: string;
+      type: 'function' | 'class' | 'module';
+      filePath: string;
+      nextSteps: string[];
+    }[] = [];
 
     const step = {
       id: `step-${symbol.name}`,
       name: symbol.name,
-      type: (symbol.kind === SymbolKind.Class ? 'class' : 'function') as 'function' | 'class' | 'module',
+      type: (symbol.kind === SymbolKind.Class ? 'class' : 'function') as
+        | 'function'
+        | 'class'
+        | 'module',
       filePath: file.path,
       nextSteps: [] as string[],
     };

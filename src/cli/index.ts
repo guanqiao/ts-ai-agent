@@ -10,6 +10,8 @@ import { AgentOrchestrator } from '../agents';
 import { TemplateEngine } from '../generators';
 import { WikiManager, WikiOptions, WikiContext } from '../wiki';
 import { ArchitectureAnalyzer } from '../architecture';
+import { HybridSearch } from '../search';
+import { ConfigManager } from '../config';
 import {
   GeneratorOptions,
   LLMProvider,
@@ -76,7 +78,9 @@ program
           console.log(chalk.yellow(`  ${err.file}: ${err.message}`));
         });
       } else {
-        spinner.succeed(`Parsed ${parseResult.summary.totalFiles} files, ${parseResult.summary.totalSymbols} symbols`);
+        spinner.succeed(
+          `Parsed ${parseResult.summary.totalFiles} files, ${parseResult.summary.totalSymbols} symbols`
+        );
       }
 
       if (options.dryRun) {
@@ -86,7 +90,9 @@ program
       }
 
       if (!options.apiKey && !process.env.OPENAI_API_KEY) {
-        spinner.fail('API key required. Set OPENAI_API_KEY environment variable or use --api-key option');
+        spinner.fail(
+          'API key required. Set OPENAI_API_KEY environment variable or use --api-key option'
+        );
         process.exit(1);
       }
 
@@ -196,7 +202,7 @@ program
 program
   .command('wiki')
   .description('Wiki management commands')
-  .argument('<action>', 'Action to perform (init, generate, watch, query, export, architecture)')
+  .argument('<action>', 'Action to perform (init, generate, watch, query, export, architecture, sync, search, config)')
   .argument('[input]', 'Input directory path', '.')
   .option('-o, --output <path>', 'Output directory', './wiki')
   .option('-f, --format <format>', 'Output format (markdown, github-wiki, confluence)', 'markdown')
@@ -206,6 +212,13 @@ program
   .option('--base-url <url>', 'Base URL for LLM API')
   .option('--watch', 'Enable watch mode for auto-updates', false)
   .option('--query <question>', 'Query the wiki knowledge base')
+  .option('--search <query>', 'Search wiki documents')
+  .option('--max-results <n>', 'Maximum search results', '10')
+  .option('--sync-start', 'Start auto sync', false)
+  .option('--sync-stop', 'Stop auto sync', false)
+  .option('--sync-status', 'Show sync status', false)
+  .option('--show-config', 'Show current configuration', false)
+  .option('--reset-config', 'Reset configuration to defaults', false)
   .action(async (action: string, input: string, options: any) => {
     const spinner = ora('Initializing Wiki...').start();
 
@@ -263,15 +276,30 @@ program
           await handleWikiArchitecture(inputPath, spinner);
           break;
 
+        case 'sync':
+          await handleWikiSync(wikiManager, options, spinner);
+          break;
+
+        case 'search':
+          await handleWikiSearch(inputPath, options.search, options, spinner);
+          break;
+
+        case 'config':
+          await handleWikiConfig(inputPath, options, spinner);
+          break;
+
         default:
           spinner.fail(`Unknown wiki action: ${action}`);
           console.log(chalk.yellow('\nAvailable actions:'));
-          console.log('  init        - Initialize wiki for a project');
-          console.log('  generate    - Generate wiki documentation');
-          console.log('  watch       - Watch for changes and auto-update');
-          console.log('  query       - Query the wiki knowledge base');
-          console.log('  export      - Export wiki to different formats');
+          console.log('  init         - Initialize wiki for a project');
+          console.log('  generate     - Generate wiki documentation');
+          console.log('  watch        - Watch for changes and auto-update');
+          console.log('  query        - Query the wiki knowledge base');
+          console.log('  export       - Export wiki to different formats');
           console.log('  architecture - Show architecture analysis');
+          console.log('  sync         - Manage auto-sync (start/stop/status)');
+          console.log('  search       - Search wiki documents');
+          console.log('  config       - Manage wiki configuration');
           process.exit(1);
       }
     } catch (error) {
@@ -471,6 +499,161 @@ async function handleWikiArchitecture(inputPath: string, spinner: any): Promise<
       console.log(chalk.yellow(`  - ${rec}`));
     });
   }
+}
+
+async function handleWikiSync(wikiManager: WikiManager, options: any, spinner: any): Promise<void> {
+  if (options.syncStart) {
+    spinner.text = 'Starting auto-sync...';
+    await wikiManager.startAutoSync();
+    spinner.succeed('Auto-sync started');
+    console.log(chalk.green('\n✓ Auto-sync is now running'));
+    console.log(chalk.gray('  Wiki will automatically update on code changes'));
+  } else if (options.syncStop) {
+    spinner.text = 'Stopping auto-sync...';
+    wikiManager.stopAutoSync();
+    spinner.succeed('Auto-sync stopped');
+    console.log(chalk.green('\n✓ Auto-sync has been stopped'));
+  } else if (options.syncStatus) {
+    spinner.text = 'Getting sync status...';
+    const status = wikiManager.getAutoSyncStatus();
+    const health = await wikiManager.getSyncHealth();
+    spinner.succeed('Sync status retrieved');
+
+    console.log(chalk.blue('\n## Sync Status'));
+    console.log(`  Is Synced: ${status.isSynced ? chalk.green('Yes') : chalk.yellow('No')}`);
+    console.log(`  Last Sync: ${status.lastSyncTime ? new Date(status.lastSyncTime).toLocaleString() : 'Never'}`);
+    console.log(`  Pending Changes: ${status.pendingChanges}`);
+    console.log(`  Errors: ${status.errors.length}`);
+
+    console.log(chalk.blue('\n## Sync Health'));
+    console.log(`  Score: ${health.score}/100`);
+    console.log(`  Status: ${health.status === 'healthy' ? chalk.green(health.status) : health.status === 'warning' ? chalk.yellow(health.status) : chalk.red(health.status)}`);
+    console.log(`  Message: ${health.message}`);
+
+    if (status.outdatedPages.length > 0) {
+      console.log(chalk.blue('\n## Outdated Pages'));
+      status.outdatedPages.slice(5).forEach((page) => {
+        console.log(chalk.yellow(`  - ${page.pageTitle} (${page.severity})`));
+      });
+      if (status.outdatedPages.length > 5) {
+        console.log(chalk.gray(`  ... and ${status.outdatedPages.length - 5} more`));
+      }
+    }
+  } else {
+    spinner.info('Use --sync-start, --sync-stop, or --sync-status');
+  }
+}
+
+async function handleWikiSearch(inputPath: string, query: string | undefined, options: any, spinner: any): Promise<void> {
+  if (!query) {
+    spinner.fail('Please provide a search query with --search option');
+    process.exit(1);
+  }
+
+  spinner.text = 'Searching wiki documents...';
+
+  const searchEngine = new HybridSearch();
+  const maxResults = parseInt(options.maxResults) || 10;
+
+  const wikiDir = path.join(inputPath, '.wiki', 'pages');
+  if (!fs.existsSync(wikiDir)) {
+    spinner.fail('Wiki not initialized. Run `tsd-gen wiki generate` first.');
+    process.exit(1);
+  }
+
+  const pageFiles = fs.readdirSync(wikiDir).filter((f) => f.endsWith('.json'));
+  const documents = pageFiles.map((file) => {
+    const content = fs.readFileSync(path.join(wikiDir, file), 'utf-8');
+    const page = JSON.parse(content);
+    return {
+      id: page.id,
+      content: page.content,
+      metadata: {
+        pageId: page.id,
+        title: page.title,
+        category: page.metadata?.category || 'unknown',
+        tags: page.metadata?.tags || [],
+        wordCount: page.content.split(/\s+/).length,
+      },
+    };
+  });
+
+  await searchEngine.index(documents);
+
+  const results = await searchEngine.search(query, {
+    maxResults,
+    threshold: 0.1,
+    includeHighlights: true,
+    keywordWeight: 0.4,
+    semanticWeight: 0.6,
+  });
+
+  spinner.succeed(`Found ${results.length} results`);
+
+  console.log(chalk.blue('\n## Search Results'));
+  console.log(chalk.gray(`Query: "${query}"\n`));
+
+  if (results.length === 0) {
+    console.log(chalk.yellow('No results found'));
+    return;
+  }
+
+  results.forEach((result, index) => {
+    console.log(chalk.green(`${index + 1}. ${result.document.metadata.title}`));
+    console.log(chalk.gray(`   Score: ${result.score.toFixed(3)} (${result.searchType})`));
+    if (result.highlights && result.highlights.length > 0) {
+      console.log(chalk.gray(`   Preview: ${result.highlights[0].snippet.substring(0, 100)}...`));
+    }
+    console.log();
+  });
+}
+
+async function handleWikiConfig(inputPath: string, options: any, spinner: any): Promise<void> {
+  const configManager = new ConfigManager(inputPath);
+
+  if (options.resetConfig) {
+    spinner.text = 'Resetting configuration...';
+    await configManager.reset();
+    spinner.succeed('Configuration reset to defaults');
+    console.log(chalk.green('\n✓ Configuration has been reset'));
+    return;
+  }
+
+  if (options.showConfig) {
+    spinner.text = 'Loading configuration...';
+    const config = await configManager.load();
+    spinner.succeed('Configuration loaded');
+
+    console.log(chalk.blue('\n## Current Configuration'));
+    console.log(JSON.stringify(config, null, 2));
+    return;
+  }
+
+  spinner.text = 'Loading configuration...';
+  const config = await configManager.load();
+  spinner.succeed('Configuration loaded');
+
+  console.log(chalk.blue('\n## Wiki Configuration'));
+  console.log(chalk.green('\nProject:'));
+  console.log(`  Name: ${config.project.name || path.basename(inputPath)}`);
+  console.log(`  Language: ${config.project.language}`);
+  console.log(`  Exclude: ${config.project.excludePatterns.slice(0, 3).join(', ')}...`);
+
+  console.log(chalk.green('\nWiki:'));
+  console.log(`  Output: ${config.wiki.outputDir}`);
+  console.log(`  Format: ${config.wiki.format}`);
+  console.log(`  Auto-sync: ${config.sync.autoSync}`);
+
+  console.log(chalk.green('\nSearch:'));
+  console.log(`  Enabled: ${config.search.enabled}`);
+  console.log(`  Type: ${config.search.type}`);
+  console.log(`  Max Results: ${config.search.maxResults}`);
+
+  console.log(chalk.green('\nLLM:'));
+  console.log(`  Model: ${config.llm.model}`);
+  console.log(`  Temperature: ${config.llm.temperature}`);
+
+  console.log(chalk.gray('\nUse --show-config for full configuration or --reset-config to reset to defaults'));
 }
 
 async function parseInput(inputPath: string, options: any): Promise<ParseResult> {

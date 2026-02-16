@@ -117,7 +117,10 @@ export class GitService implements IGitService {
     }
 
     const { stdout } = await execAsync(command, { cwd: repoPath });
-    return stdout.trim().split('\n').filter((f) => f.length > 0);
+    return stdout
+      .trim()
+      .split('\n')
+      .filter((f) => f.length > 0);
   }
 
   async getDiff(repoPath: string, options?: GitDiffOptions): Promise<GitDiff[]> {
@@ -144,11 +147,7 @@ export class GitService implements IGitService {
     return this.parseDiffOutput(stdout);
   }
 
-  async getFileDiff(
-    repoPath: string,
-    filePath: string,
-    since?: string
-  ): Promise<GitDiff> {
+  async getFileDiff(repoPath: string, filePath: string, since?: string): Promise<GitDiff> {
     const diffs = await this.getDiff(repoPath, {
       filePath,
       since,
@@ -168,10 +167,9 @@ export class GitService implements IGitService {
   }
 
   async getBlame(repoPath: string, filePath: string): Promise<BlameInfo[]> {
-    const { stdout } = await execAsync(
-      `git blame --line-porcelain "${filePath}"`,
-      { cwd: repoPath }
-    );
+    const { stdout } = await execAsync(`git blame --line-porcelain "${filePath}"`, {
+      cwd: repoPath,
+    });
 
     return this.parseBlameOutput(stdout);
   }

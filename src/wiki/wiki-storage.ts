@@ -1,44 +1,53 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import {
-  IWikiStorage,
-  WikiDocument,
-  WikiPage,
-  WikiDocumentMetadata,
-  WikiIndex,
-} from './types';
+import { IWikiStorage, WikiDocument, WikiPage, WikiDocumentMetadata, WikiIndex } from './types';
+
+interface StoredDocument {
+  id: string;
+  name: string;
+  description?: string;
+  metadata: WikiDocumentMetadata;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export class WikiStorage implements IWikiStorage {
   private storagePath: string;
   private wikiDir: string;
   private indexPath: string;
   private metadataPath: string;
+  private documentPath: string;
 
   constructor(projectPath: string) {
     this.storagePath = path.join(projectPath, '.wiki');
     this.wikiDir = path.join(this.storagePath, 'pages');
     this.indexPath = path.join(this.storagePath, 'index.json');
     this.metadataPath = path.join(this.storagePath, 'metadata.json');
+    this.documentPath = path.join(this.storagePath, 'document.json');
   }
 
   async save(document: WikiDocument): Promise<void> {
     await this.ensureStorageExists();
 
+    const storedDoc: StoredDocument = {
+      id: document.id,
+      name: document.name,
+      description: document.description,
+      metadata: document.metadata,
+      createdAt: document.createdAt.toISOString(),
+      updatedAt: document.updatedAt.toISOString(),
+    };
+    await fs.promises.writeFile(this.documentPath, JSON.stringify(storedDoc, null, 2));
+
     const metadata: WikiDocumentMetadata = document.metadata;
-    await fs.promises.writeFile(
-      this.metadataPath,
-      JSON.stringify(metadata, null, 2)
-    );
+    await fs.promises.writeFile(this.metadataPath, JSON.stringify(metadata, null, 2));
 
     for (const page of document.pages) {
       await this.savePage(page);
     }
 
     const index: WikiIndex = document.index;
-    await fs.promises.writeFile(
-      this.indexPath,
-      JSON.stringify(index, null, 2)
-    );
+    await fs.promises.writeFile(this.indexPath, JSON.stringify(index, null, 2));
   }
 
   async load(projectPath: string): Promise<WikiDocument | null> {
@@ -47,23 +56,47 @@ export class WikiStorage implements IWikiStorage {
     }
 
     try {
-      const metadataContent = await fs.promises.readFile(this.metadataPath, 'utf-8');
-      const metadata: WikiDocumentMetadata = JSON.parse(metadataContent);
+      let docName: string;
+      let docDescription: string | undefined;
+      let docId: string;
+      let docCreatedAt: Date;
+      let docUpdatedAt: Date;
+
+      if (fs.existsSync(this.documentPath)) {
+        const docContent = await fs.promises.readFile(this.documentPath, 'utf-8');
+        const storedDoc: StoredDocument = JSON.parse(docContent);
+        docName = storedDoc.name;
+        docDescription = storedDoc.description;
+        docId = storedDoc.id;
+        docCreatedAt = new Date(storedDoc.createdAt);
+        docUpdatedAt = new Date(storedDoc.updatedAt);
+      } else {
+        const metadataContent = await fs.promises.readFile(this.metadataPath, 'utf-8');
+        const metadata: WikiDocumentMetadata = JSON.parse(metadataContent);
+        docName = metadata.projectName;
+        docDescription = `Wiki documentation for ${metadata.projectName}`;
+        docId = this.generateDocumentId(projectPath);
+        docCreatedAt = new Date();
+        docUpdatedAt = new Date();
+      }
 
       const indexContent = await fs.promises.readFile(this.indexPath, 'utf-8');
       const index: WikiIndex = JSON.parse(indexContent);
 
+      const metadataContent = await fs.promises.readFile(this.metadataPath, 'utf-8');
+      const metadata: WikiDocumentMetadata = JSON.parse(metadataContent);
+
       const pages = await this.listPages();
 
       return {
-        id: this.generateDocumentId(projectPath),
-        name: metadata.projectName,
-        description: `Wiki documentation for ${metadata.projectName}`,
+        id: docId,
+        name: docName,
+        description: docDescription,
         pages,
         index,
         metadata,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: docCreatedAt,
+        updatedAt: docUpdatedAt,
       };
     } catch {
       return null;
@@ -215,9 +248,7 @@ export class WikiStorage implements IWikiStorage {
     return pages.filter((page) => {
       const titleMatch = page.title.toLowerCase().includes(lowerQuery);
       const contentMatch = page.content.toLowerCase().includes(lowerQuery);
-      const tagMatch = page.metadata.tags.some((t) =>
-        t.toLowerCase().includes(lowerQuery)
-      );
+      const tagMatch = page.metadata.tags.some((t) => t.toLowerCase().includes(lowerQuery));
 
       return titleMatch || contentMatch || tagMatch;
     });

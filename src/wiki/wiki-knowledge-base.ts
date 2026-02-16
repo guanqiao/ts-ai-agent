@@ -1,10 +1,5 @@
 import { LLMService } from '../llm';
-import {
-  IWikiKnowledgeBase,
-  WikiDocument,
-  WikiPage,
-  WikiAnswer,
-} from './types';
+import { IWikiKnowledgeBase, WikiDocument, WikiPage, WikiAnswer } from './types';
 
 interface SearchIndex {
   pageId: string;
@@ -243,13 +238,13 @@ export class WikiKnowledgeBase implements IWikiKnowledgeBase {
 
     scores.sort((a, b) => b.score - a.score);
 
-    return scores.slice(0, 5).map((s) => this.pages.get(s.pageId)!).filter(Boolean);
+    return scores
+      .slice(0, 5)
+      .map((s) => this.pages.get(s.pageId)!)
+      .filter(Boolean);
   }
 
-  private async queryWithLLM(
-    question: string,
-    pages: WikiPage[]
-  ): Promise<WikiAnswer> {
+  private async queryWithLLM(question: string, pages: WikiPage[]): Promise<WikiAnswer> {
     if (!this.llmService) {
       return this.queryWithKeywordMatch(question, pages);
     }
@@ -268,9 +263,7 @@ Question: ${question}
 Please provide a clear and concise answer based on the wiki content. If the information is not available in the wiki, say so.`;
 
     try {
-      const response = await this.llmService.complete([
-        { role: 'user', content: prompt },
-      ]);
+      const response = await this.llmService.complete([{ role: 'user', content: prompt }]);
 
       return {
         question,
@@ -289,10 +282,7 @@ Please provide a clear and concise answer based on the wiki content. If the info
     }
   }
 
-  private queryWithKeywordMatch(
-    question: string,
-    pages: WikiPage[]
-  ): WikiAnswer {
+  private queryWithKeywordMatch(question: string, pages: WikiPage[]): WikiAnswer {
     const relevantSections: { page: WikiPage; section: string }[] = [];
 
     for (const page of pages) {

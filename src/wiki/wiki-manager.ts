@@ -24,9 +24,22 @@ import {
   WikiEventCallback,
   WikiAnswer,
   WikiDocumentMetadata,
+  WikiPageVersion,
+  WikiDiffResult,
+  WikiAuditLog,
+  AutoSyncConfig,
+  SyncStatus,
+  OutdatedPage,
+  ReminderConfig,
+  ChangeImpact,
 } from './types';
 import { WikiStorage } from './wiki-storage';
 import { WikiKnowledgeBase } from './wiki-knowledge-base';
+import { WikiHistory } from './wiki-history';
+import { WikiDiff } from './wiki-diff';
+import { WikiAudit } from './wiki-audit';
+import { WikiAutoSync } from './wiki-auto-sync';
+import { WikiSyncMonitor } from './wiki-sync-monitor';
 
 export class WikiManager extends EventEmitter implements IWikiManager {
   private projectPath: string = '';
@@ -37,7 +50,12 @@ export class WikiManager extends EventEmitter implements IWikiManager {
   private incrementalUpdater: IncrementalUpdater | null = null;
   private gitWatcher: GitWatcher | null = null;
   private llmService: LLMService | null = null;
+  private wikiHistory: WikiHistory | null = null;
+  private wikiAudit: WikiAudit | null = null;
+  private autoSync: WikiAutoSync | null = null;
+  private syncMonitor: WikiSyncMonitor | null = null;
   private isWatching: boolean = false;
+  private currentUser?: string;
 
   constructor(llmConfig?: LLMConfig) {
     super();
@@ -46,28 +64,34 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     }
   }
 
-  async initialize(projectPath: string, options: WikiOptions): Promise<void> {
+  async initialize(projectPath: string, options: WikiOptions, user?: string): Promise<void> {
     this.projectPath = projectPath;
     this.options = options;
+    this.currentUser = user;
 
     this.storage = new WikiStorage(projectPath);
     this.knowledgeBase = new WikiKnowledgeBase(this.llmService || undefined);
     this.architectureAnalyzer = new ArchitectureAnalyzer();
-    this.incrementalUpdater = new IncrementalUpdater(
-      path.join(projectPath, '.wiki', 'snapshots')
-    );
+    this.incrementalUpdater = new IncrementalUpdater(path.join(projectPath, '.wiki', 'snapshots'));
+    this.wikiHistory = new WikiHistory(projectPath);
+    this.wikiAudit = new WikiAudit(projectPath);
+    this.autoSync = new WikiAutoSync(projectPath);
+    this.syncMonitor = new WikiSyncMonitor(projectPath);
 
     if (this.llmService) {
       await this.llmService.initialize();
-      this.knowledgeBase.setLLMService(this.llmService);
+      this.knowledgeBase!.setLLMService(this.llmService);
     }
+  }
+
+  setCurrentUser(user: string): void {
+    this.currentUser = user;
   }
 
   async generate(context: WikiContext): Promise<WikiDocument> {
     const { parsedFiles, architecture } = context;
 
-    const archReport =
-      architecture || (await this.architectureAnalyzer!.analyze(parsedFiles));
+    const archReport = architecture || (await this.architectureAnalyzer!.analyze(parsedFiles));
 
     const pages = await this.generatePages(parsedFiles, archReport);
 
@@ -88,6 +112,17 @@ export class WikiManager extends EventEmitter implements IWikiManager {
 
     await this.storage!.save(document);
     await this.knowledgeBase!.index(document);
+
+    // 保存初始版本到历史记录
+    for (const page of pages) {
+      await this.wikiHistory!.saveVersion(page, 'Initial version', this.currentUser);
+      await this.wikiAudit!.log('page-created', {
+        pageId: page.id,
+        pageTitle: page.title,
+        version: page.version,
+        performedBy: this.currentUser,
+      });
+    }
 
     const snapshot = this.incrementalUpdater!.createSnapshot(
       parsedFiles,
@@ -128,6 +163,23 @@ export class WikiManager extends EventEmitter implements IWikiManager {
 
           await this.storage!.savePage(page);
 
+          // 保存版本历史
+          await this.wikiHistory!.saveVersion(
+            page,
+            `Updated due to changes in ${fileChange.path}`,
+            this.currentUser
+          );
+
+          // 记录审计日志
+          await this.wikiAudit!.log('page-updated', {
+            pageId: page.id,
+            pageTitle: page.title,
+            oldVersion: page.version - 1,
+            newVersion: page.version,
+            performedBy: this.currentUser,
+            details: { changedFile: fileChange.path },
+          });
+
           this.emitEvent({
             type: 'page-updated',
             pageId,
@@ -159,9 +211,10 @@ export class WikiManager extends EventEmitter implements IWikiManager {
 
     switch (format) {
       case DocumentFormat.Markdown:
-      case DocumentFormat.GitHubWiki:
+      case DocumentFormat.GitHubWiki: {
         const files = await this.storage!.exportToMarkdown(this.options!.outputDir);
         return files.join('\n');
+      }
 
       case DocumentFormat.Confluence:
         return this.exportToConfluence(document);
@@ -212,19 +265,230 @@ export class WikiManager extends EventEmitter implements IWikiManager {
   }
 
   async deletePage(pageId: string): Promise<void> {
-    await this.storage!.deletePage(pageId);
+    const page = await this.storage!.loadPage(pageId);
+    if (page) {
+      await this.storage!.deletePage(pageId);
 
-    this.emitEvent({
-      type: 'page-deleted',
+      // 记录审计日志
+      await this.wikiAudit!.log('page-deleted', {
+        pageId,
+        pageTitle: page.title,
+        version: page.version,
+        performedBy: this.currentUser,
+      });
+
+      this.emitEvent({
+        type: 'page-deleted',
+        pageId,
+        timestamp: new Date(),
+      });
+    }
+  }
+
+  // ==================== 版本控制方法 ====================
+
+  async getPageVersion(pageId: string, version: number): Promise<WikiPageVersion | null> {
+    return this.wikiHistory!.getVersion(pageId, version);
+  }
+
+  async getPageHistory(pageId: string): Promise<import('./types').WikiPageHistory | null> {
+    return this.wikiHistory!.getHistory(pageId);
+  }
+
+  async listPageVersions(
+    pageId: string,
+    limit?: number,
+    offset?: number
+  ): Promise<WikiPageVersion[]> {
+    return this.wikiHistory!.listVersions(pageId, limit, offset);
+  }
+
+  async comparePageVersions(
+    pageId: string,
+    oldVersion: number,
+    newVersion: number
+  ): Promise<WikiDiffResult> {
+    return this.wikiHistory!.compareVersions(pageId, oldVersion, newVersion);
+  }
+
+  async rollbackPage(pageId: string, targetVersion: number): Promise<WikiPage | null> {
+    const rolledBackPage = await this.wikiHistory!.rollback(
       pageId,
-      timestamp: new Date(),
+      targetVersion,
+      this.currentUser
+    );
+
+    if (rolledBackPage) {
+      // 保存回滚后的页面
+      await this.storage!.savePage(rolledBackPage);
+
+      // 记录审计日志
+      await this.wikiAudit!.log('page-rolled-back', {
+        pageId,
+        pageTitle: rolledBackPage.title,
+        oldVersion: rolledBackPage.version - 1,
+        newVersion: rolledBackPage.version,
+        performedBy: this.currentUser,
+        details: { rolledBackTo: targetVersion },
+      });
+
+      this.emitEvent({
+        type: 'page-updated',
+        pageId,
+        timestamp: new Date(),
+        details: { action: 'rollback', targetVersion },
+      });
+    }
+
+    return rolledBackPage;
+  }
+
+  async generatePageDiff(
+    pageId: string,
+    oldVersion: number,
+    newVersion: number,
+    format: 'unified' | 'html' = 'unified'
+  ): Promise<string> {
+    const oldPageVersion = await this.wikiHistory!.getVersion(pageId, oldVersion);
+    const newPageVersion = await this.wikiHistory!.getVersion(pageId, newVersion);
+
+    if (!oldPageVersion || !newPageVersion) {
+      throw new Error('Version not found');
+    }
+
+    if (format === 'html') {
+      return WikiDiff.generateHtmlDiff(
+        oldPageVersion.content,
+        newPageVersion.content,
+        oldVersion,
+        newVersion
+      );
+    } else {
+      return WikiDiff.generateUnifiedDiff(
+        oldPageVersion.content,
+        newPageVersion.content,
+        oldVersion,
+        newVersion
+      );
+    }
+  }
+
+  // ==================== 审计日志方法 ====================
+
+  async getAuditLogs(query: import('./types').WikiAuditLogQuery): Promise<WikiAuditLog[]> {
+    return this.wikiAudit!.query(query);
+  }
+
+  async getRecentAuditLogs(limit: number = 50): Promise<WikiAuditLog[]> {
+    return this.wikiAudit!.getRecentLogs(limit);
+  }
+
+  async getPageAuditLogs(pageId: string, limit: number = 50): Promise<WikiAuditLog[]> {
+    return this.wikiAudit!.getPageLogs(pageId, limit);
+  }
+
+  // ==================== 自动同步方法 ====================
+
+  async startAutoSync(config?: Partial<AutoSyncConfig>): Promise<void> {
+    const defaultConfig: AutoSyncConfig = {
+      onProjectOpen: true,
+      onGitChange: true,
+      debounceMs: 2000,
+      backgroundMode: true,
+      notifyOnOutdated: true,
+      maxRetries: 3,
+      retryDelayMs: 1000,
+      ...config,
+    };
+
+    await this.autoSync!.start(defaultConfig);
+
+    this.autoSync!.on('sync-started', (data) => {
+      this.emitEvent({
+        type: 'wiki-regenerated',
+        timestamp: new Date(),
+        details: { action: 'auto-sync-started', ...data },
+      });
+    });
+
+    this.autoSync!.on('sync-completed', (data) => {
+      this.emitEvent({
+        type: 'wiki-regenerated',
+        timestamp: new Date(),
+        details: { action: 'auto-sync-completed', ...data },
+      });
+    });
+
+    this.autoSync!.on('sync-error', (data) => {
+      this.emitEvent({
+        type: 'wiki-regenerated',
+        timestamp: new Date(),
+        details: { action: 'auto-sync-error', error: data.error },
+      });
     });
   }
 
-  private async generatePages(
-    parsedFiles: ParsedFile[],
-    architecture: any
-  ): Promise<WikiPage[]> {
+  stopAutoSync(): void {
+    if (this.autoSync) {
+      this.autoSync.stop();
+    }
+  }
+
+  getAutoSyncStatus(): SyncStatus {
+    return this.autoSync!.getStatus();
+  }
+
+  async forceSync(): Promise<void> {
+    await this.autoSync!.forceSync();
+  }
+
+  isAutoSyncRunning(): boolean {
+    return this.autoSync?.isRunning() || false;
+  }
+
+  // ==================== 同步监控方法 ====================
+
+  async checkSyncStatus(): Promise<SyncStatus> {
+    return this.syncMonitor!.checkSyncStatus();
+  }
+
+  async getOutdatedPages(): Promise<OutdatedPage[]> {
+    return this.syncMonitor!.getOutdatedPages();
+  }
+
+  scheduleSyncReminders(config: ReminderConfig): void {
+    this.syncMonitor!.scheduleReminders(config);
+
+    this.syncMonitor!.on('reminder', (data) => {
+      this.emitEvent({
+        type: 'wiki-regenerated',
+        timestamp: new Date(),
+        details: { action: 'sync-reminder', ...data },
+      });
+    });
+  }
+
+  cancelSyncReminders(): void {
+    this.syncMonitor!.cancelReminders();
+  }
+
+  async getChangeImpact(filePath: string): Promise<ChangeImpact> {
+    return this.syncMonitor!.getChangeImpact(filePath);
+  }
+
+  async markPagesAsSynced(pageIds: string[]): Promise<void> {
+    await this.syncMonitor!.markAsSynced(pageIds);
+  }
+
+  async getSyncHealth(): Promise<{
+    score: number;
+    status: 'healthy' | 'warning' | 'critical';
+    message: string;
+  }> {
+    return this.syncMonitor!.getSyncHealth();
+  }
+
+  private async generatePages(parsedFiles: ParsedFile[], architecture: any): Promise<WikiPage[]> {
     const pages: WikiPage[] = [];
 
     pages.push(this.createOverviewPage(parsedFiles, architecture));
@@ -240,10 +504,7 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     return pages;
   }
 
-  private createOverviewPage(
-    parsedFiles: ParsedFile[],
-    architecture: any
-  ): WikiPage {
+  private createOverviewPage(parsedFiles: ParsedFile[], architecture: any): WikiPage {
     const totalSymbols = parsedFiles.reduce((sum, f) => sum + f.symbols.length, 0);
     const classCount = parsedFiles.reduce(
       (sum, f) => sum + f.symbols.filter((s) => s.kind === SymbolKind.Class).length,
@@ -334,13 +595,7 @@ Modules: ${layer.modules.map((m: any) => m.name).join(', ')}
 ${architecture.recommendations.map((r: string) => `- ${r}`).join('\n')}
 `;
 
-    return this.createPage(
-      'architecture',
-      'Architecture',
-      content,
-      'architecture',
-      []
-    );
+    return this.createPage('architecture', 'Architecture', content, 'architecture', []);
   }
 
   private createModulePages(parsedFiles: ParsedFile[]): WikiPage[] {
@@ -405,9 +660,7 @@ ${classes
 ${c.description || 'No description available.'}
 
 ${
-  c.members && c.members.length > 0
-    ? `**Members:** ${c.members.map((m) => m.name).join(', ')}`
-    : ''
+  c.members && c.members.length > 0 ? `**Members:** ${c.members.map((m) => m.name).join(', ')}` : ''
 }
 `
   )
@@ -452,13 +705,9 @@ ${i.description || 'No description available.'}
     if (publicAPIs.length > 0) {
       const content = this.generateAPIContent(publicAPIs);
       pages.push(
-        this.createPage(
-          'api-reference',
-          'API Reference',
-          content,
-          'api',
-          [...new Set(publicAPIs.map((s) => s.filePath))]
-        )
+        this.createPage('api-reference', 'API Reference', content, 'api', [
+          ...new Set(publicAPIs.map((s) => s.filePath)),
+        ])
       );
     }
 
@@ -499,10 +748,7 @@ ${
 | Name | Kind | Type | Description |
 |------|------|------|-------------|
 ${c.members
-  .map(
-    (m: any) =>
-      `| ${m.name} | ${m.kind} | ${m.type || '-'} | ${m.description || '-'} |`
-  )
+  .map((m: any) => `| ${m.name} | ${m.kind} | ${m.type || '-'} | ${m.description || '-'} |`)
   .join('\n')}
 `
     : ''
@@ -530,10 +776,7 @@ ${
 | Name | Type | Description |
 |------|------|-------------|
 ${i.members
-  .map(
-    (m: any) =>
-      `| ${m.name} | ${m.type || '-'} | ${m.description || '-'} |`
-  )
+  .map((m: any) => `| ${m.name} | ${m.type || '-'} | ${m.description || '-'} |`)
   .join('\n')}
 `
     : ''
@@ -571,8 +814,7 @@ ${
 |------|------|----------|-------------|
 ${f.parameters
   .map(
-    (p: any) =>
-      `| ${p.name} | ${p.type} | ${p.optional ? 'Yes' : 'No'} | ${p.description || '-'} |`
+    (p: any) => `| ${p.name} | ${p.type} | ${p.optional ? 'Yes' : 'No'} | ${p.description || '-'} |`
   )
   .join('\n')}
 `
@@ -717,10 +959,7 @@ ${f.returnType ? `**Returns:** \`${f.returnType}\`` : ''}
     };
   }
 
-  private buildMetadata(
-    _context: WikiContext,
-    parsedFiles: ParsedFile[]
-  ): WikiDocumentMetadata {
+  private buildMetadata(_context: WikiContext, parsedFiles: ParsedFile[]): WikiDocumentMetadata {
     return {
       projectName: path.basename(this.projectPath),
       generator: 'tsd-generator',
@@ -787,10 +1026,7 @@ ${f.returnType ? `**Returns:** \`${f.returnType}\`` : ''}
     confluence = confluence.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     confluence = confluence.replace(/\*([^*]+)\*/g, '<em>$1</em>');
 
-    confluence = confluence.replace(
-      /\[([^\]]+)\]\(([^)]+)\)/g,
-      '<a href="$2">$1</a>'
-    );
+    confluence = confluence.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
 
     return confluence;
   }

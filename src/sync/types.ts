@@ -74,14 +74,8 @@ export interface SnapshotMetadata {
 }
 
 export interface IChangeDetector {
-  detect(
-    oldFiles: ParsedFile[],
-    newFiles: ParsedFile[]
-  ): ChangeSet;
-  detectFileChange(
-    oldFile: ParsedFile | null,
-    newFile: ParsedFile | null
-  ): FileChange | null;
+  detect(oldFiles: ParsedFile[], newFiles: ParsedFile[]): ChangeSet;
+  detectFileChange(oldFile: ParsedFile | null, newFile: ParsedFile | null): FileChange | null;
   compareSymbols(
     oldSymbols: CodeSymbol[],
     newSymbols: CodeSymbol[]
@@ -89,15 +83,8 @@ export interface IChangeDetector {
 }
 
 export interface IIncrementalUpdater {
-  update(
-    changeSet: ChangeSet,
-    existingDocument: string
-  ): Promise<string>;
-  mergeContent(
-    oldContent: string,
-    newContent: string,
-    changeType: ChangeType
-  ): string;
+  update(changeSet: ChangeSet, existingDocument: string): Promise<string>;
+  mergeContent(oldContent: string, newContent: string, changeType: ChangeType): string;
   createSnapshot(files: ParsedFile[], commitHash: string): Snapshot;
   loadSnapshot(snapshotId: string): Promise<Snapshot | null>;
   saveSnapshot(snapshot: Snapshot): Promise<void>;

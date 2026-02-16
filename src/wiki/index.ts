@@ -1,4 +1,13 @@
 export { WikiManager } from './wiki-manager';
 export { WikiStorage } from './wiki-storage';
 export { WikiKnowledgeBase } from './wiki-knowledge-base';
+export { WikiHistory } from './wiki-history';
+export { WikiDiff } from './wiki-diff';
+export { WikiAudit } from './wiki-audit';
+export { WikiAutoSync } from './wiki-auto-sync';
+export { WikiSyncMonitor } from './wiki-sync-monitor';
+export { WikiVectorStore } from './wiki-vector-store';
+export { WikiContextCompressor } from './wiki-context-compressor';
+export { WikiMemory } from './wiki-memory';
+export { WikiPromptEnhancer } from './wiki-prompt-enhancer';
 export * from './types';

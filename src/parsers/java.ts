@@ -63,7 +63,8 @@ interface JavaAnnotation {
 function parseJavaCode(content: string): any {
   const lines = content.split('\n');
   const classes: JavaClassOrInterface[] = [];
-  const classRegex = /(?:public|private|protected)?\s*(?:abstract|final)?\s*(class|interface|enum)\s+(\w+)/g;
+  const classRegex =
+    /(?:public|private|protected)?\s*(?:abstract|final)?\s*(class|interface|enum)\s+(\w+)/g;
   let match;
 
   while ((match = classRegex.exec(content)) !== null) {
@@ -139,7 +140,8 @@ function extractJavadoc(lines: string[], startLine: number): string | undefined 
 }
 
 function extractClassMembers(classBody: string, classInfo: JavaClassOrInterface): void {
-  const fieldRegex = /(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+)?(\w+(?:<[^>]+>)?)\s+(\w+)\s*[;=]/g;
+  const fieldRegex =
+    /(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+)?(\w+(?:<[^>]+>)?)\s+(\w+)\s*[;=]/g;
   let fieldMatch;
 
   while ((fieldMatch = fieldRegex.exec(classBody)) !== null) {
@@ -151,7 +153,8 @@ function extractClassMembers(classBody: string, classInfo: JavaClassOrInterface)
     });
   }
 
-  const methodRegex = /(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+)?(?:abstract\s+)?(\w+(?:<[^>]+>)?)\s+(\w+)\s*\(([^)]*)\)/g;
+  const methodRegex =
+    /(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+)?(?:abstract\s+)?(\w+(?:<[^>]+>)?)\s+(\w+)\s*\(([^)]*)\)/g;
   let methodMatch;
 
   while ((methodMatch = methodRegex.exec(classBody)) !== null) {
@@ -265,7 +268,11 @@ export class JavaParser extends BaseParser {
     return result;
   }
 
-  private parseJavaContent(content: string, filePath: string, options?: ParserOptions): CodeSymbol[] {
+  private parseJavaContent(
+    content: string,
+    filePath: string,
+    options?: ParserOptions
+  ): CodeSymbol[] {
     const symbols: CodeSymbol[] = [];
 
     try {
@@ -378,7 +385,8 @@ export class JavaParser extends BaseParser {
 
   private fallbackParse(content: string, filePath: string): CodeSymbol[] {
     const symbols: CodeSymbol[] = [];
-    const classRegex = /(?:public|private|protected)?\s*(?:abstract|final)?\s*(class|interface|enum)\s+(\w+)/g;
+    const classRegex =
+      /(?:public|private|protected)?\s*(?:abstract|final)?\s*(class|interface|enum)\s+(\w+)/g;
     let match;
 
     while ((match = classRegex.exec(content)) !== null) {
@@ -388,7 +396,12 @@ export class JavaParser extends BaseParser {
 
       symbols.push({
         name,
-        kind: kind === 'class' ? SymbolKind.Class : kind === 'interface' ? SymbolKind.Interface : SymbolKind.Enum,
+        kind:
+          kind === 'class'
+            ? SymbolKind.Class
+            : kind === 'interface'
+              ? SymbolKind.Interface
+              : SymbolKind.Enum,
         location: {
           file: filePath,
           line: lineNumber,

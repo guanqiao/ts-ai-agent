@@ -7,7 +7,13 @@ export const BUILTIN_TEMPLATES: Record<string, DocumentTemplate> = {
     sections: [
       { id: 'overview', title: 'Overview', template: 'overview', required: true, order: 1 },
       { id: 'classes', title: 'Classes', template: 'class-list', required: true, order: 2 },
-      { id: 'interfaces', title: 'Interfaces', template: 'interface-list', required: true, order: 3 },
+      {
+        id: 'interfaces',
+        title: 'Interfaces',
+        template: 'interface-list',
+        required: true,
+        order: 3,
+      },
       { id: 'functions', title: 'Functions', template: 'function-list', required: true, order: 4 },
       { id: 'types', title: 'Type Definitions', template: 'type-list', required: false, order: 5 },
       { id: 'examples', title: 'Examples', template: 'examples', required: false, order: 6 },
@@ -18,11 +24,29 @@ export const BUILTIN_TEMPLATES: Record<string, DocumentTemplate> = {
     name: 'Architecture Documentation',
     description: 'System architecture and design documentation',
     sections: [
-      { id: 'overview', title: 'System Overview', template: 'system-overview', required: true, order: 1 },
+      {
+        id: 'overview',
+        title: 'System Overview',
+        template: 'system-overview',
+        required: true,
+        order: 1,
+      },
       { id: 'modules', title: 'Module Structure', template: 'modules', required: true, order: 2 },
-      { id: 'dependencies', title: 'Dependencies', template: 'dependencies', required: true, order: 3 },
+      {
+        id: 'dependencies',
+        title: 'Dependencies',
+        template: 'dependencies',
+        required: true,
+        order: 3,
+      },
       { id: 'data-flow', title: 'Data Flow', template: 'data-flow', required: false, order: 4 },
-      { id: 'design-decisions', title: 'Design Decisions', template: 'design-decisions', required: false, order: 5 },
+      {
+        id: 'design-decisions',
+        title: 'Design Decisions',
+        template: 'design-decisions',
+        required: false,
+        order: 5,
+      },
     ],
   },
 
@@ -42,11 +66,35 @@ export const BUILTIN_TEMPLATES: Record<string, DocumentTemplate> = {
     description: 'Project README template',
     sections: [
       { id: 'title', title: 'Title', template: 'title', required: true, order: 1 },
-      { id: 'description', title: 'Description', template: 'description', required: true, order: 2 },
-      { id: 'installation', title: 'Installation', template: 'installation', required: true, order: 3 },
-      { id: 'quick-start', title: 'Quick Start', template: 'quick-start', required: true, order: 4 },
+      {
+        id: 'description',
+        title: 'Description',
+        template: 'description',
+        required: true,
+        order: 2,
+      },
+      {
+        id: 'installation',
+        title: 'Installation',
+        template: 'installation',
+        required: true,
+        order: 3,
+      },
+      {
+        id: 'quick-start',
+        title: 'Quick Start',
+        template: 'quick-start',
+        required: true,
+        order: 4,
+      },
       { id: 'api', title: 'API Reference', template: 'api-reference', required: false, order: 5 },
-      { id: 'contributing', title: 'Contributing', template: 'contributing', required: false, order: 6 },
+      {
+        id: 'contributing',
+        title: 'Contributing',
+        template: 'contributing',
+        required: false,
+        order: 6,
+      },
       { id: 'license', title: 'License', template: 'license', required: false, order: 7 },
     ],
   },
@@ -108,7 +156,10 @@ export class TemplateEngine {
         const listContent = value.map((item) => `- ${item}`).join('\n');
         result = result.replace(new RegExp(this.escapeRegex(placeholder), 'g'), listContent);
       } else if (typeof value === 'object' && value !== null) {
-        result = result.replace(new RegExp(this.escapeRegex(placeholder), 'g'), JSON.stringify(value, null, 2));
+        result = result.replace(
+          new RegExp(this.escapeRegex(placeholder), 'g'),
+          JSON.stringify(value, null, 2)
+        );
       }
     }
 

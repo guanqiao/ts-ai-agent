@@ -1,5 +1,14 @@
 import { BaseAgent, LLMService, SYSTEM_PROMPTS, PROMPT_TEMPLATES, renderTemplate } from '../llm';
-import { AgentContext, AgentResult, CodeSymbol, ParsedFile, SymbolKind, GeneratedDocument, DocumentSection, DocumentFormat } from '../types';
+import {
+  AgentContext,
+  AgentResult,
+  CodeSymbol,
+  ParsedFile,
+  SymbolKind,
+  GeneratedDocument,
+  DocumentSection,
+  DocumentFormat,
+} from '../types';
 
 export class DocGeneratorAgent extends BaseAgent {
   readonly name = 'DocGeneratorAgent';
@@ -297,7 +306,12 @@ ${mainClasses.map((c) => `- ${c.name}: ${c.description || '无描述'}`).join('\
     return files.flatMap((f) => f.symbols);
   }
 
-  private calculateStats(symbols: CodeSymbol[]): { classes: number; interfaces: number; functions: number; others: number } {
+  private calculateStats(symbols: CodeSymbol[]): {
+    classes: number;
+    interfaces: number;
+    functions: number;
+    others: number;
+  } {
     return {
       classes: symbols.filter((s) => s.kind === SymbolKind.Class).length,
       interfaces: symbols.filter((s) => s.kind === SymbolKind.Interface).length,

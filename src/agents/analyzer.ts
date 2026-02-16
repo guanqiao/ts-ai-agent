@@ -46,7 +46,10 @@ export class CodeAnalysisAgent extends BaseAgent {
     return analysis;
   }
 
-  private async generateSummary(files: ParsedFile[], analyses: Map<string, string>): Promise<string> {
+  private async generateSummary(
+    files: ParsedFile[],
+    analyses: Map<string, string>
+  ): Promise<string> {
     const fileList = files.map((f) => `- ${f.path} (${f.symbols.length} symbols)`).join('\n');
 
     const summaryPrompt = `基于以下文件分析结果，生成项目整体架构摘要：

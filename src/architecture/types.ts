@@ -119,10 +119,7 @@ export interface IArchitectureAnalyzer {
   identifyLayers(modules: ModuleInfo[]): LayerInfo[];
   identifyCoreFlows(files: ParsedFile[]): BusinessFlow[];
   detectDecisions(files: ParsedFile[]): TechnicalDecision[];
-  calculateMetrics(
-    modules: ModuleInfo[],
-    graph: DependencyGraph
-  ): ArchitectureMetrics;
+  calculateMetrics(modules: ModuleInfo[], graph: DependencyGraph): ArchitectureMetrics;
 }
 
 export interface IPatternDetector {

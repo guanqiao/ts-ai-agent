@@ -1,9 +1,5 @@
 import { ParsedFile, SymbolKind } from '../types';
-import {
-  ArchitecturePattern,
-  PatternMatch,
-  IPatternDetector,
-} from './types';
+import { ArchitecturePattern, PatternMatch, IPatternDetector } from './types';
 
 interface PatternRule {
   pattern: ArchitecturePattern;
@@ -24,11 +20,7 @@ const PATTERN_RULES: PatternRule[] = [
       /[\/\\](controllers?|views?|models?)[\/\\]/i,
       /[\/\\]app[\/\\](controllers?|views?|models?)/i,
     ],
-    fileIndicators: [
-      /controller/i,
-      /model/i,
-      /view/i,
-    ],
+    fileIndicators: [/controller/i, /model/i, /view/i],
     symbolIndicators: [
       { kinds: [SymbolKind.Class], namePatterns: [/Controller$/, /Model$/, /View$/] },
     ],
@@ -41,30 +33,15 @@ const PATTERN_RULES: PatternRule[] = [
       /[\/\\](viewmodels?|views?|models?)[\/\\]/i,
       /[\/\\]src[\/\\](viewmodels?|views?|models?)/i,
     ],
-    fileIndicators: [
-      /viewmodel/i,
-      /view/i,
-      /\.vue$/i,
-    ],
-    symbolIndicators: [
-      { kinds: [SymbolKind.Class], namePatterns: [/ViewModel$/, /View$/] },
-    ],
+    fileIndicators: [/viewmodel/i, /view/i, /\.vue$/i],
+    symbolIndicators: [{ kinds: [SymbolKind.Class], namePatterns: [/ViewModel$/, /View$/] }],
     dependencyIndicators: ['viewmodel->model', 'view->viewmodel'],
     minConfidence: 0.6,
   },
   {
     pattern: 'microservices',
-    directoryIndicators: [
-      /[\/\\]services?[\/\\]/i,
-      /[\/\\]api[\/\\]/i,
-      /[\/\\]gateway[\/\\]/i,
-    ],
-    fileIndicators: [
-      /service$/i,
-      /api$/i,
-      /gateway$/i,
-      /client$/i,
-    ],
+    directoryIndicators: [/[\/\\]services?[\/\\]/i, /[\/\\]api[\/\\]/i, /[\/\\]gateway[\/\\]/i],
+    fileIndicators: [/service$/i, /api$/i, /gateway$/i, /client$/i],
     symbolIndicators: [
       { kinds: [SymbolKind.Class], namePatterns: [/Service$/, /Gateway$/, /Client$/] },
     ],
@@ -78,11 +55,7 @@ const PATTERN_RULES: PatternRule[] = [
       /[\/\\](ui|service|repository|dao)[\/\\]/i,
       /[\/\\](controllers?|services?|repositories?)[\/\\]/i,
     ],
-    fileIndicators: [
-      /service$/i,
-      /repository$/i,
-      /dao$/i,
-    ],
+    fileIndicators: [/service$/i, /repository$/i, /dao$/i],
     symbolIndicators: [
       { kinds: [SymbolKind.Class], namePatterns: [/Service$/, /Repository$/, /DAO$/] },
     ],
@@ -95,15 +68,12 @@ const PATTERN_RULES: PatternRule[] = [
       /[\/\\](events?|handlers?|listeners?|subscribers?|publishers?)[\/\\]/i,
       /[\/\\](messaging|queue|broker)[\/\\]/i,
     ],
-    fileIndicators: [
-      /event$/i,
-      /handler$/i,
-      /listener$/i,
-      /subscriber$/i,
-      /publisher$/i,
-    ],
+    fileIndicators: [/event$/i, /handler$/i, /listener$/i, /subscriber$/i, /publisher$/i],
     symbolIndicators: [
-      { kinds: [SymbolKind.Class, SymbolKind.Interface], namePatterns: [/Event$/, /Handler$/, /Listener$/, /Subscriber$/, /Publisher$/] },
+      {
+        kinds: [SymbolKind.Class, SymbolKind.Interface],
+        namePatterns: [/Event$/, /Handler$/, /Listener$/, /Subscriber$/, /Publisher$/],
+      },
     ],
     dependencyIndicators: ['publisher->event', 'subscriber->event'],
     minConfidence: 0.5,
@@ -114,27 +84,20 @@ const PATTERN_RULES: PatternRule[] = [
       /[\/\\](domain|application|infrastructure|ports?|adapters?)[\/\\]/i,
       /[\/\\](core|entities?|usecases?)[\/\\]/i,
     ],
-    fileIndicators: [
-      /port$/i,
-      /adapter$/i,
-      /usecase$/i,
-      /entity$/i,
-    ],
+    fileIndicators: [/port$/i, /adapter$/i, /usecase$/i, /entity$/i],
     symbolIndicators: [
-      { kinds: [SymbolKind.Class, SymbolKind.Interface], namePatterns: [/Port$/, /Adapter$/, /UseCase$/, /Entity$/] },
+      {
+        kinds: [SymbolKind.Class, SymbolKind.Interface],
+        namePatterns: [/Port$/, /Adapter$/, /UseCase$/, /Entity$/],
+      },
     ],
     dependencyIndicators: ['adapter->port', 'usecase->port'],
     minConfidence: 0.6,
   },
   {
     pattern: 'modular',
-    directoryIndicators: [
-      /[\/\\]modules?[\/\\]/i,
-      /[\/\\]features?[\/\\]/i,
-    ],
-    fileIndicators: [
-      /module$/i,
-    ],
+    directoryIndicators: [/[\/\\]modules?[\/\\]/i, /[\/\\]features?[\/\\]/i],
+    fileIndicators: [/module$/i],
     symbolIndicators: [
       { kinds: [SymbolKind.Class, SymbolKind.Interface], namePatterns: [/Module$/] },
     ],
@@ -148,13 +111,12 @@ const PATTERN_RULES: PatternRule[] = [
       /[\/\\]extensions?[\/\\]/i,
       /[\/\\]addons?[\/\\]/i,
     ],
-    fileIndicators: [
-      /plugin$/i,
-      /extension$/i,
-      /addon$/i,
-    ],
+    fileIndicators: [/plugin$/i, /extension$/i, /addon$/i],
     symbolIndicators: [
-      { kinds: [SymbolKind.Class, SymbolKind.Interface], namePatterns: [/Plugin$/, /Extension$/, /Addon$/] },
+      {
+        kinds: [SymbolKind.Class, SymbolKind.Interface],
+        namePatterns: [/Plugin$/, /Extension$/, /Addon$/],
+      },
     ],
     dependencyIndicators: ['plugin->host'],
     minConfidence: 0.5,
@@ -282,9 +244,7 @@ export class PatternDetector implements IPatternDetector {
     };
 
     return (
-      directoryRatio * weights.directory +
-      fileRatio * weights.file +
-      symbolRatio * weights.symbol
+      directoryRatio * weights.directory + fileRatio * weights.file + symbolRatio * weights.symbol
     );
   }
 

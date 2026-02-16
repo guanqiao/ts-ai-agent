@@ -170,7 +170,8 @@ export class TypeScriptParser extends BaseParser {
     if ('getModifiers' in node && typeof (node as any).getModifiers === 'function') {
       const modifiers = (node as any).getModifiers() || [];
       const isPrivate = modifiers.some(
-        (m: any) => m.getKind() === SyntaxKind.PrivateKeyword || m.getKind() === SyntaxKind.ProtectedKeyword
+        (m: any) =>
+          m.getKind() === SyntaxKind.PrivateKeyword || m.getKind() === SyntaxKind.ProtectedKeyword
       );
       return isPrivate;
     }
@@ -470,8 +471,17 @@ export class TypeScriptParser extends BaseParser {
 
   private getFunctionSignature(fn: FunctionDeclaration): string {
     const name = fn.getName() || '';
-    const typeParams = fn.getTypeParameters().length > 0 ? `<${fn.getTypeParameters().map((t) => t.getText()).join(', ')}>` : '';
-    const params = fn.getParameters().map((p) => p.getText()).join(', ');
+    const typeParams =
+      fn.getTypeParameters().length > 0
+        ? `<${fn
+            .getTypeParameters()
+            .map((t) => t.getText())
+            .join(', ')}>`
+        : '';
+    const params = fn
+      .getParameters()
+      .map((p) => p.getText())
+      .join(', ');
     const returnType = fn.getReturnTypeNode()?.getText() || fn.getReturnType().getText();
 
     return `${name}${typeParams}(${params}): ${returnType}`;
