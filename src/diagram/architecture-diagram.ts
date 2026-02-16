@@ -146,10 +146,7 @@ export class ArchitectureDiagramGenerator {
     });
   }
 
-  private generateDependencyEdges(
-    dependencyGraph: DependencyGraph,
-    edges: DiagramEdge[]
-  ): void {
+  private generateDependencyEdges(dependencyGraph: DependencyGraph, edges: DiagramEdge[]): void {
     const existingEdges = new Set(edges.map((e) => `${e.source}->${e.target}`));
 
     for (const [moduleName] of dependencyGraph.nodes) {
@@ -178,14 +175,7 @@ export class ArchitectureDiagramGenerator {
   }
 
   private getLayerColor(index: number): string {
-    const colors = [
-      '#E3F2FD',
-      '#FFF3E0',
-      '#E8F5E9',
-      '#FCE4EC',
-      '#F3E5F5',
-      '#E0F7FA',
-    ];
+    const colors = ['#E3F2FD', '#FFF3E0', '#E8F5E9', '#FCE4EC', '#F3E5F5', '#E0F7FA'];
     return colors[index % colors.length];
   }
 
@@ -205,7 +195,10 @@ export class ArchitectureDiagramGenerator {
     return { ...this.config };
   }
 
-  generateMermaidCode(architecture: ArchitectureReport, sourceFiles?: ParsedFile[]): Promise<string> {
+  generateMermaidCode(
+    architecture: ArchitectureReport,
+    sourceFiles?: ParsedFile[]
+  ): Promise<string> {
     return this.generate(architecture, sourceFiles).then((diagram) => this.export(diagram));
   }
 }

@@ -1,9 +1,5 @@
 import * as fs from 'fs';
-import {
-  IExampleIntegrator,
-  CodeExample,
-  ExampleGroup,
-} from './types';
+import { IExampleIntegrator, CodeExample, ExampleGroup } from './types';
 
 export class ExampleIntegrator implements IExampleIntegrator {
   async integrate(examples: CodeExample[], documentPath: string): Promise<void> {

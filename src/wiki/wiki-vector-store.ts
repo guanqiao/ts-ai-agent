@@ -1,12 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { LLMService } from '../llm';
-import {
-  IVectorStore,
-  SearchDocument,
-  SearchResult,
-  EmbeddingConfig,
-} from '../search/types';
+import { IVectorStore, SearchDocument, SearchResult, EmbeddingConfig } from '../search/types';
 
 export class WikiVectorStore implements IVectorStore {
   private llmService: LLMService | null = null;

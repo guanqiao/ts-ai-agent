@@ -1,10 +1,5 @@
 import { LLMService } from '../llm';
-import {
-  ISemanticSearch,
-  SearchDocument,
-  SemanticSearchResult,
-  EmbeddingConfig,
-} from './types';
+import { ISemanticSearch, SearchDocument, SemanticSearchResult, EmbeddingConfig } from './types';
 
 export class SemanticSearch implements ISemanticSearch {
   private llmService: LLMService | null = null;
@@ -43,7 +38,10 @@ export class SemanticSearch implements ISemanticSearch {
     return this.searchByEmbedding(queryEmbedding, maxResults);
   }
 
-  async searchByEmbedding(embedding: number[], maxResults: number): Promise<SemanticSearchResult[]> {
+  async searchByEmbedding(
+    embedding: number[],
+    maxResults: number
+  ): Promise<SemanticSearchResult[]> {
     const results: SemanticSearchResult[] = [];
 
     for (const [id, docEmbedding] of this.embeddings) {
@@ -110,9 +108,7 @@ export class SemanticSearch implements ISemanticSearch {
     const embeddings: number[][] = [];
     for (let i = 0; i < texts.length; i += this.config.batchSize) {
       const batch = texts.slice(i, i + this.config.batchSize);
-      const batchEmbeddings = await Promise.all(
-        batch.map((text) => this.generateEmbedding(text))
-      );
+      const batchEmbeddings = await Promise.all(batch.map((text) => this.generateEmbedding(text)));
       embeddings.push(...batchEmbeddings);
     }
     return embeddings;

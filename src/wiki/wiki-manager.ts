@@ -40,6 +40,78 @@ import { WikiDiff } from './wiki-diff';
 import { WikiAudit } from './wiki-audit';
 import { WikiAutoSync } from './wiki-auto-sync';
 import { WikiSyncMonitor } from './wiki-sync-monitor';
+import {
+  WikiSharingService,
+  WikiSyncResolver,
+  WikiSharingConfig,
+  ShareResult,
+  SyncResult,
+  ShareStatus,
+  Conflict,
+  ConflictResolution,
+  DEFAULT_SHARING_CONFIG,
+} from './sharing';
+import { WikiGraphGenerator, Graph, GraphOptions, GraphFormat, GraphFilter } from './graph';
+import {
+  WikiEditorService,
+  WikiPreview,
+  WikiTemplates,
+  WikiEditSession,
+  WikiTemplate,
+  TemplateCategory,
+  DraftDocument,
+  AutoSaveConfig,
+  DEFAULT_EDITOR_CONFIG,
+} from './editor';
+import {
+  ArchitectureDiagramGenerator,
+  DiagramExporter,
+  ArchitectureDiagram,
+  LayeredDiagramConfig,
+  ComponentDiagramConfig,
+  DeploymentDiagramConfig,
+  ExportOptions,
+  ExportFormat,
+} from './diagram';
+import {
+  KnowledgeGraph,
+  KnowledgeNode,
+  KnowledgeGraphQuery,
+  KnowledgeGraphQueryResult,
+  Recommendation,
+  RecommendationContext,
+  LearningPath,
+} from './knowledge';
+import {
+  EnhancedChangeImpact,
+  ImpactItem,
+  RiskAssessment,
+  SuggestedAction,
+  RiskLevel,
+} from './impact';
+import {
+  WikiCollaborationService,
+  WikiPermissionService,
+  WikiLockService,
+  WikiContributor,
+  WikiRole,
+  WikiPermission,
+  PageLock,
+  LockStatus,
+  EditSession,
+  WikiUserConfig,
+} from './collaboration';
+import {
+  ADRService,
+  ADRExtractor,
+  ADRTemplates,
+  ArchitectureDecisionRecord,
+  ADRFilter,
+  ADRStatus,
+  ADRTemplate,
+  CodeReference,
+  ADRExtractionResult,
+} from './adr';
 
 export class WikiManager extends EventEmitter implements IWikiManager {
   private projectPath: string = '';
@@ -54,6 +126,24 @@ export class WikiManager extends EventEmitter implements IWikiManager {
   private wikiAudit: WikiAudit | null = null;
   private autoSync: WikiAutoSync | null = null;
   private syncMonitor: WikiSyncMonitor | null = null;
+  private sharingService: WikiSharingService | null = null;
+  private syncResolver: WikiSyncResolver | null = null;
+  private graphGenerator: WikiGraphGenerator | null = null;
+  private editorService: WikiEditorService | null = null;
+  private wikiPreview: WikiPreview | null = null;
+  private wikiTemplates: WikiTemplates | null = null;
+  private diagramGenerator: ArchitectureDiagramGenerator | null = null;
+  private diagramExporter: DiagramExporter | null = null;
+  private collaborationService: WikiCollaborationService | null = null;
+  private permissionService: WikiPermissionService | null = null;
+  private lockService: WikiLockService | null = null;
+  private adrService: ADRService | null = null;
+  private adrExtractor: ADRExtractor | null = null;
+  private adrTemplates: ADRTemplates | null = null;
+  private knowledgeGraphService: import('./knowledge').KnowledgeGraphService | null = null;
+  private changeImpactAnalyzer: import('./impact').ChangeImpactAnalyzer | null = null;
+  private riskAssessmentService: import('./impact').RiskAssessmentService | null = null;
+  private suggestionGenerator: import('./impact').SuggestionGenerator | null = null;
   private isWatching: boolean = false;
   private currentUser?: string;
 
@@ -77,6 +167,31 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     this.wikiAudit = new WikiAudit(projectPath);
     this.autoSync = new WikiAutoSync(projectPath);
     this.syncMonitor = new WikiSyncMonitor(projectPath);
+    this.sharingService = new WikiSharingService(projectPath);
+    this.syncResolver = new WikiSyncResolver();
+    this.graphGenerator = new WikiGraphGenerator();
+    this.editorService = new WikiEditorService(projectPath);
+    this.wikiPreview = new WikiPreview();
+    this.wikiTemplates = new WikiTemplates(projectPath);
+    this.diagramGenerator = new ArchitectureDiagramGenerator();
+    this.diagramExporter = new DiagramExporter();
+    this.collaborationService = new WikiCollaborationService(projectPath);
+    this.permissionService = new WikiPermissionService(projectPath, this.collaborationService);
+    this.lockService = new WikiLockService(projectPath);
+    this.adrService = new ADRService(projectPath);
+    this.adrExtractor = new ADRExtractor();
+    this.adrTemplates = new ADRTemplates(projectPath);
+    this.knowledgeGraphService = new (await import('./knowledge')).KnowledgeGraphService();
+    const impactModule = await import('./impact');
+    this.changeImpactAnalyzer = new impactModule.ChangeImpactAnalyzer(projectPath);
+    this.riskAssessmentService = new impactModule.RiskAssessmentService();
+    this.suggestionGenerator = new impactModule.SuggestionGenerator(projectPath);
+
+    await this.collaborationService.initialize();
+    await this.permissionService.initialize();
+    await this.lockService.initialize();
+    await this.adrService.initialize();
+    await this.adrTemplates.initialize();
 
     if (this.llmService) {
       await this.llmService.initialize();
@@ -488,6 +603,395 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     return this.syncMonitor!.getSyncHealth();
   }
 
+  // ==================== Wiki 共享方法 ====================
+
+  async initializeSharing(config?: Partial<WikiSharingConfig>): Promise<void> {
+    const finalConfig = { ...DEFAULT_SHARING_CONFIG, ...config };
+    await this.sharingService!.initialize(finalConfig);
+  }
+
+  async shareWiki(): Promise<ShareResult> {
+    const document = await this.storage!.load(this.projectPath);
+    if (!document) {
+      throw new Error('No wiki found. Please generate first.');
+    }
+
+    this.sharingService!.setWikiDocument(document);
+    return this.sharingService!.share();
+  }
+
+  async syncWiki(): Promise<SyncResult> {
+    return this.sharingService!.sync();
+  }
+
+  async getShareStatus(): Promise<ShareStatus> {
+    return this.sharingService!.getStatus();
+  }
+
+  async resolveShareConflict(conflictId: string, resolution: ConflictResolution): Promise<void> {
+    await this.sharingService!.resolveConflict(conflictId, resolution);
+  }
+
+  async resolveShareConflicts(resolutions: Map<string, ConflictResolution>): Promise<void> {
+    await this.sharingService!.resolveConflicts(resolutions);
+  }
+
+  async getShareConflicts(): Promise<Conflict[]> {
+    return this.sharingService!.getConflicts();
+  }
+
+  isSharingEnabled(): boolean {
+    return this.sharingService?.isEnabled() ?? false;
+  }
+
+  // ==================== 图谱生成方法 ====================
+
+  async generateDependencyGraph(
+    parsedFiles: ParsedFile[],
+    options?: Partial<GraphOptions>
+  ): Promise<Graph> {
+    if (options) {
+      this.graphGenerator = new WikiGraphGenerator(options);
+    }
+
+    const architecture = await this.architectureAnalyzer!.analyze(parsedFiles);
+    return this.graphGenerator!.generateDependencyGraph(parsedFiles, architecture);
+  }
+
+  async generateCallGraph(
+    parsedFiles: ParsedFile[],
+    options?: Partial<GraphOptions>
+  ): Promise<Graph> {
+    if (options) {
+      this.graphGenerator = new WikiGraphGenerator(options);
+    }
+
+    return this.graphGenerator!.generateCallGraph(parsedFiles);
+  }
+
+  async generateInheritanceGraph(
+    parsedFiles: ParsedFile[],
+    options?: Partial<GraphOptions>
+  ): Promise<Graph> {
+    if (options) {
+      this.graphGenerator = new WikiGraphGenerator(options);
+    }
+
+    return this.graphGenerator!.generateInheritanceGraph(parsedFiles);
+  }
+
+  async generateImplementationGraph(
+    parsedFiles: ParsedFile[],
+    options?: Partial<GraphOptions>
+  ): Promise<Graph> {
+    if (options) {
+      this.graphGenerator = new WikiGraphGenerator(options);
+    }
+
+    return this.graphGenerator!.generateImplementationGraph(parsedFiles);
+  }
+
+  exportGraph(graph: Graph, format: GraphFormat, options?: Partial<GraphOptions>): string {
+    return this.graphGenerator!.export(graph, format, options);
+  }
+
+  exportGraphToMermaid(graph: Graph, options?: Partial<GraphOptions>): string {
+    return this.graphGenerator!.exportToMermaid(graph, options);
+  }
+
+  exportGraphToSVG(graph: Graph, options?: Partial<GraphOptions>): string {
+    return this.graphGenerator!.exportToSVG(graph, options);
+  }
+
+  exportGraphToJSON(graph: Graph): string {
+    return this.graphGenerator!.exportToJSON(graph);
+  }
+
+  filterGraph(graph: Graph, filter: GraphFilter): Graph {
+    return this.graphGenerator!.filterGraph(graph, filter);
+  }
+
+  detectGraphCycles(graph: Graph): string[][] {
+    return this.graphGenerator!.detectCycles(graph);
+  }
+
+  // ==================== 编辑器方法 ====================
+
+  async createWikiEditSession(pageId: string): Promise<WikiEditSession> {
+    const page = await this.storage!.loadPage(pageId);
+    if (!page) {
+      throw new Error(`Page not found: ${pageId}`);
+    }
+    return this.editorService!.createSession(pageId, page.content);
+  }
+
+  async updateWikiEditSession(sessionId: string, content: string): Promise<void> {
+    await this.editorService!.updateSession(sessionId, content);
+  }
+
+  async getWikiEditSession(sessionId: string): Promise<WikiEditSession | null> {
+    return this.editorService!.getSession(sessionId);
+  }
+
+  async endWikiEditSession(sessionId: string): Promise<void> {
+    await this.editorService!.endSession(sessionId);
+  }
+
+  async getActiveWikiEditSessions(): Promise<WikiEditSession[]> {
+    return this.editorService!.getActiveSessions();
+  }
+
+  enableAutoSave(sessionId: string, config?: Partial<AutoSaveConfig>): void {
+    const finalConfig = { ...DEFAULT_EDITOR_CONFIG.autoSave, ...config };
+    this.editorService!.enableAutoSave(sessionId, finalConfig);
+  }
+
+  disableAutoSave(sessionId: string): void {
+    this.editorService!.disableAutoSave(sessionId);
+  }
+
+  async saveDraft(sessionId: string): Promise<DraftDocument> {
+    return this.editorService!.saveDraft(sessionId);
+  }
+
+  async restoreDraft(pageId: string): Promise<DraftDocument | null> {
+    return this.editorService!.restoreDraft(pageId);
+  }
+
+  async getDrafts(pageId: string): Promise<DraftDocument[]> {
+    return this.editorService!.getDrafts(pageId);
+  }
+
+  async clearDrafts(pageId: string): Promise<void> {
+    await this.editorService!.clearDrafts(pageId);
+  }
+
+  async renderPreview(content: string): Promise<string> {
+    return this.wikiPreview!.renderPreview(content);
+  }
+
+  async getPreviewTableOfContents(): Promise<import('./editor').TableOfContentsEntry[]> {
+    return this.wikiPreview!.getTableOfContents();
+  }
+
+  // ==================== 模板方法 ====================
+
+  async getTemplate(templateId: string): Promise<WikiTemplate | null> {
+    return this.wikiTemplates!.getTemplate(templateId);
+  }
+
+  async getTemplates(category?: TemplateCategory): Promise<WikiTemplate[]> {
+    return this.wikiTemplates!.getTemplates(category);
+  }
+
+  async applyTemplate(templateId: string, variables: Record<string, unknown>): Promise<string> {
+    return this.wikiTemplates!.applyTemplate(templateId, variables);
+  }
+
+  async createTemplate(template: Omit<WikiTemplate, 'id' | 'metadata'>): Promise<WikiTemplate> {
+    return this.wikiTemplates!.createTemplate(template);
+  }
+
+  async updateTemplate(templateId: string, template: Partial<WikiTemplate>): Promise<WikiTemplate> {
+    return this.wikiTemplates!.updateTemplate(templateId, template);
+  }
+
+  async deleteTemplate(templateId: string): Promise<void> {
+    await this.wikiTemplates!.deleteTemplate(templateId);
+  }
+
+  validateTemplate(template: WikiTemplate): import('./editor').ValidationResult {
+    return this.wikiTemplates!.validateTemplate(template);
+  }
+
+  // ==================== 架构图方法 ====================
+
+  async generateLayeredDiagram(config: LayeredDiagramConfig): Promise<ArchitectureDiagram> {
+    this.diagramGenerator!.setProjectName(path.basename(this.projectPath));
+    return this.diagramGenerator!.generateLayeredDiagram(config);
+  }
+
+  async generateComponentDiagram(config: ComponentDiagramConfig): Promise<ArchitectureDiagram> {
+    this.diagramGenerator!.setProjectName(path.basename(this.projectPath));
+    return this.diagramGenerator!.generateComponentDiagram(config);
+  }
+
+  async generateDeploymentDiagram(config: DeploymentDiagramConfig): Promise<ArchitectureDiagram> {
+    this.diagramGenerator!.setProjectName(path.basename(this.projectPath));
+    return this.diagramGenerator!.generateDeploymentDiagram(config);
+  }
+
+  generateArchitectureDiagram(
+    architecture: import('../architecture/types').ArchitectureReport
+  ): ArchitectureDiagram {
+    this.diagramGenerator!.setProjectName(path.basename(this.projectPath));
+    return this.diagramGenerator!.generateFromArchitecture(architecture);
+  }
+
+  exportDiagram(
+    diagram: ArchitectureDiagram,
+    format: ExportFormat,
+    options?: ExportOptions
+  ): string | Promise<string | Buffer> {
+    switch (format) {
+      case 'mermaid':
+        return this.diagramExporter!.exportToMermaid(diagram, options);
+      case 'svg':
+        return this.diagramExporter!.exportToSVG(diagram, options);
+      case 'json':
+        return this.diagramExporter!.exportToJSON(diagram, options);
+      case 'drawio':
+        return this.diagramExporter!.exportToDrawIO(diagram, options);
+      case 'png':
+        return this.diagramExporter!.exportToPNG(diagram, options);
+      default:
+        throw new Error(`Unsupported export format: ${format}`);
+    }
+  }
+
+  exportDiagramToMermaid(diagram: ArchitectureDiagram, options?: ExportOptions): string {
+    return this.diagramExporter!.exportToMermaid(diagram, options);
+  }
+
+  exportDiagramToSVG(diagram: ArchitectureDiagram, options?: ExportOptions): string {
+    return this.diagramExporter!.exportToSVG(diagram, options);
+  }
+
+  async exportDiagramToPNG(diagram: ArchitectureDiagram, options?: ExportOptions): Promise<Buffer> {
+    return this.diagramExporter!.exportToPNG(diagram, options);
+  }
+
+  exportDiagramToJSON(diagram: ArchitectureDiagram, options?: ExportOptions): string {
+    return this.diagramExporter!.exportToJSON(diagram, options);
+  }
+
+  exportDiagramToDrawIO(diagram: ArchitectureDiagram, options?: ExportOptions): string {
+    return this.diagramExporter!.exportToDrawIO(diagram, options);
+  }
+
+  // ==================== 知识图谱方法 ====================
+
+  async buildKnowledgeGraph(): Promise<KnowledgeGraph> {
+    const document = await this.storage!.load(this.projectPath);
+    if (!document) {
+      throw new Error('No wiki found. Please generate first.');
+    }
+
+    return this.knowledgeGraphService!.build(document.pages);
+  }
+
+  async queryKnowledgeGraph(query: KnowledgeGraphQuery): Promise<KnowledgeGraphQueryResult> {
+    return this.knowledgeGraphService!.query(query);
+  }
+
+  async findRelatedNodes(nodeId: string, maxDepth?: number): Promise<KnowledgeNode[]> {
+    return this.knowledgeGraphService!.findRelated(nodeId, maxDepth);
+  }
+
+  async getLearningPath(startNodeId: string, endNodeId: string): Promise<LearningPath | null> {
+    return this.knowledgeGraphService!.getLearningPath(startNodeId, endNodeId);
+  }
+
+  async getRecommendations(context: RecommendationContext): Promise<Recommendation[]> {
+    return this.knowledgeGraphService!.recommend(context);
+  }
+
+  async exportKnowledgeGraph(format: 'json' | 'graphml' | 'gexf'): Promise<string> {
+    return this.knowledgeGraphService!.export(format);
+  }
+
+  async importKnowledgeGraph(
+    data: string,
+    format: 'json' | 'graphml' | 'gexf'
+  ): Promise<KnowledgeGraph> {
+    return this.knowledgeGraphService!.import(data, format);
+  }
+
+  getKnowledgeGraph(): KnowledgeGraph | null {
+    return this.knowledgeGraphService!.getGraph();
+  }
+
+  getKnowledgeGraphNode(nodeId: string): KnowledgeNode | undefined {
+    return this.knowledgeGraphService!.getNode(nodeId);
+  }
+
+  getKnowledgeGraphStatistics(): {
+    nodeCount: number;
+    edgeCount: number;
+    clusterCount: number;
+    avgConnectivity: number;
+  } {
+    return this.knowledgeGraphService!.getStatistics();
+  }
+
+  // ==================== 变更影响分析方法 ====================
+
+  async analyzeChangeImpact(
+    filePath: string,
+    changeType: 'added' | 'modified' | 'removed',
+    changeDescription?: string
+  ): Promise<EnhancedChangeImpact> {
+    return this.changeImpactAnalyzer!.analyzeFullImpact(filePath, changeType, changeDescription);
+  }
+
+  async analyzeDirectImpact(
+    filePath: string,
+    changeType: 'added' | 'modified' | 'removed'
+  ): Promise<ImpactItem[]> {
+    return this.changeImpactAnalyzer!.analyzeDirectImpact(filePath, changeType);
+  }
+
+  async analyzeIndirectImpact(directImpacts: ImpactItem[]): Promise<ImpactItem[]> {
+    return this.changeImpactAnalyzer!.analyzeIndirectImpact(directImpacts);
+  }
+
+  async traceImpactChain(
+    filePath: string,
+    maxDepth?: number
+  ): Promise<import('./impact/types').ImpactChain[]> {
+    return this.changeImpactAnalyzer!.traceImpactChain(filePath, maxDepth);
+  }
+
+  async assessRisk(impacts: ImpactItem[]): Promise<RiskAssessment> {
+    return this.riskAssessmentService!.assessOverallRisk(impacts);
+  }
+
+  async calculateRiskScore(impacts: ImpactItem[]): Promise<number> {
+    return this.riskAssessmentService!.calculateRiskScore(impacts);
+  }
+
+  async identifyRiskFactors(impacts: ImpactItem[]): Promise<import('./impact/types').RiskFactor[]> {
+    return this.riskAssessmentService!.identifyRiskFactors(impacts);
+  }
+
+  async generateMitigationStrategies(
+    riskFactors: import('./impact/types').RiskFactor[]
+  ): Promise<import('./impact/types').MitigationStrategy[]> {
+    return this.riskAssessmentService!.generateMitigation(riskFactors);
+  }
+
+  async suggestDocUpdates(impacts: ImpactItem[]): Promise<SuggestedAction[]> {
+    return this.suggestionGenerator!.suggestDocUpdates(impacts);
+  }
+
+  async suggestTestRuns(impacts: ImpactItem[]): Promise<SuggestedAction[]> {
+    return this.suggestionGenerator!.suggestTestRuns(impacts);
+  }
+
+  async suggestNotifications(
+    impacts: ImpactItem[],
+    riskLevel: RiskLevel
+  ): Promise<SuggestedAction[]> {
+    return this.suggestionGenerator!.suggestNotifications(impacts, riskLevel);
+  }
+
+  async generateAllSuggestions(
+    impacts: ImpactItem[],
+    riskLevel: RiskLevel
+  ): Promise<SuggestedAction[]> {
+    return this.suggestionGenerator!.generateAllSuggestions(impacts, riskLevel);
+  }
+
   private async generatePages(parsedFiles: ParsedFile[], architecture: any): Promise<WikiPage[]> {
     const pages: WikiPage[] = [];
 
@@ -593,9 +1097,59 @@ Modules: ${layer.modules.map((m: any) => m.name).join(', ')}
 ## Recommendations
 
 ${architecture.recommendations.map((r: string) => `- ${r}`).join('\n')}
+
+## Dependency Graph
+
+\`\`\`mermaid
+${this.generateArchitectureDependencyMermaid(architecture)}
+\`\`\`
 `;
 
     return this.createPage('architecture', 'Architecture', content, 'architecture', []);
+  }
+
+  private generateArchitectureDependencyMermaid(architecture: any): string {
+    const lines: string[] = ['graph TB'];
+
+    if (architecture.layers && architecture.layers.length > 0) {
+      for (const layer of architecture.layers) {
+        const layerId = layer.name.toLowerCase().replace(/\s+/g, '_');
+        lines.push(`  subgraph ${layerId} ["${layer.name}"]`);
+
+        if (layer.modules) {
+          for (const module of layer.modules.slice(0, 5)) {
+            const moduleId = module.name.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            lines.push(`    ${moduleId}["${module.name}"]`);
+          }
+        }
+        lines.push('  end');
+      }
+    }
+
+    if (architecture.modules) {
+      const moduleDeps = new Map<string, Set<string>>();
+
+      for (const module of architecture.modules) {
+        if (module.dependencies) {
+          for (const dep of module.dependencies) {
+            if (!moduleDeps.has(module.name)) {
+              moduleDeps.set(module.name, new Set());
+            }
+            moduleDeps.get(module.name)!.add(dep);
+          }
+        }
+      }
+
+      for (const [source, deps] of moduleDeps) {
+        const sourceId = source.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        for (const target of deps) {
+          const targetId = target.toLowerCase().replace(/[^a-z0-9]/g, '_');
+          lines.push(`  ${sourceId} --> ${targetId}`);
+        }
+      }
+    }
+
+    return lines.join('\n');
   }
 
   private createModulePages(parsedFiles: ParsedFile[]): WikiPage[] {
@@ -1033,5 +1587,278 @@ ${f.returnType ? `**Returns:** \`${f.returnType}\`` : ''}
 
   private emitEvent(event: WikiEvent): void {
     this.emit('event', event);
+  }
+
+  // ==================== 协作功能方法 ====================
+
+  async addContributor(name: string, email: string, role: WikiRole): Promise<WikiContributor> {
+    return this.collaborationService!.addContributor({ name, email, role, permissions: [] });
+  }
+
+  async removeContributor(contributorId: string): Promise<boolean> {
+    return this.collaborationService!.removeContributor(contributorId);
+  }
+
+  async getContributors(): Promise<WikiContributor[]> {
+    return this.collaborationService!.getContributors();
+  }
+
+  async getContributor(contributorId: string): Promise<WikiContributor | null> {
+    return this.collaborationService!.getContributor(contributorId);
+  }
+
+  async updateContributorRole(contributorId: string, role: WikiRole): Promise<WikiContributor> {
+    return this.collaborationService!.updateContributorRole(contributorId, role);
+  }
+
+  async getUserConfig(userId: string): Promise<WikiUserConfig | null> {
+    return this.collaborationService!.loadUserConfig(userId);
+  }
+
+  async saveUserConfig(config: WikiUserConfig): Promise<void> {
+    return this.collaborationService!.saveUserConfig(config);
+  }
+
+  async checkPermission(
+    pageId: string,
+    userId: string,
+    permission: WikiPermission
+  ): Promise<boolean> {
+    return this.permissionService!.checkPermission(pageId, userId, permission);
+  }
+
+  async setPagePermission(
+    pageId: string,
+    userId: string,
+    permissions: WikiPermission[]
+  ): Promise<void> {
+    return this.permissionService!.setPermission(pageId, userId, permissions);
+  }
+
+  async lockPage(pageId: string, userId: string, reason?: string): Promise<PageLock> {
+    return this.lockService!.lockPage(pageId, userId, reason);
+  }
+
+  async unlockPage(pageId: string, userId: string): Promise<boolean> {
+    return this.lockService!.unlockPage(pageId, userId);
+  }
+
+  async getPageLockStatus(pageId: string): Promise<LockStatus> {
+    return this.lockService!.getLockStatus(pageId);
+  }
+
+  async createEditSession(pageId: string, userId: string, userName: string): Promise<EditSession> {
+    return this.lockService!.createSession(pageId, userId, userName);
+  }
+
+  async endEditSession(sessionId: string): Promise<void> {
+    return this.lockService!.endSession(sessionId);
+  }
+
+  async getActiveSessions(pageId: string): Promise<EditSession[]> {
+    return this.lockService!.getActiveSessions(pageId);
+  }
+
+  startLockMonitor(): void {
+    this.lockService!.startLockMonitor();
+  }
+
+  stopLockMonitor(): void {
+    this.lockService!.stopLockMonitor();
+  }
+
+  // ==================== ADR 功能方法 ====================
+
+  async createADR(
+    title: string,
+    context: string,
+    decision: string,
+    createdBy: string
+  ): Promise<ArchitectureDecisionRecord> {
+    return this.adrService!.propose(title, context, decision, createdBy);
+  }
+
+  async getADR(id: string): Promise<ArchitectureDecisionRecord | null> {
+    return this.adrService!.get(id);
+  }
+
+  async listADRs(filter?: ADRFilter): Promise<ArchitectureDecisionRecord[]> {
+    return this.adrService!.list(filter);
+  }
+
+  async updateADR(
+    id: string,
+    updates: Partial<ArchitectureDecisionRecord>
+  ): Promise<ArchitectureDecisionRecord> {
+    return this.adrService!.update(id, updates);
+  }
+
+  async deleteADR(id: string): Promise<boolean> {
+    return this.adrService!.delete(id);
+  }
+
+  async acceptADR(id: string, acceptedBy: string): Promise<ArchitectureDecisionRecord> {
+    return this.adrService!.accept(id, acceptedBy);
+  }
+
+  async deprecateADR(
+    id: string,
+    reason: string,
+    deprecatedBy: string
+  ): Promise<ArchitectureDecisionRecord> {
+    return this.adrService!.deprecate(id, reason, deprecatedBy);
+  }
+
+  async rejectADR(
+    id: string,
+    reason: string,
+    rejectedBy: string
+  ): Promise<ArchitectureDecisionRecord> {
+    return this.adrService!.reject(id, reason, rejectedBy);
+  }
+
+  async linkADRToPage(adrId: string, pageId: string): Promise<void> {
+    return this.adrService!.linkToPage(adrId, pageId);
+  }
+
+  async linkADRToCode(adrId: string, reference: CodeReference): Promise<void> {
+    return this.adrService!.linkToCode(adrId, reference);
+  }
+
+  async getRelatedADRs(adrId: string): Promise<ArchitectureDecisionRecord[]> {
+    return this.adrService!.getRelated(adrId);
+  }
+
+  async extractADRsFromCode(filePath: string, content: string): Promise<ADRExtractionResult[]> {
+    return this.adrExtractor!.extractFromCode(filePath, content);
+  }
+
+  async extractADRsFromCommits(commitMessages: string[]): Promise<ADRExtractionResult[]> {
+    return this.adrExtractor!.extractFromCommits(commitMessages);
+  }
+
+  async extractADRsFromDocs(docPath: string, content: string): Promise<ADRExtractionResult[]> {
+    return this.adrExtractor!.extractFromDocs(docPath, content);
+  }
+
+  async getADRTemplates(): Promise<ADRTemplate[]> {
+    return this.adrTemplates!.getTemplates();
+  }
+
+  async fillADRTemplate(templateId: string, variables: Record<string, string>): Promise<string> {
+    return this.adrTemplates!.fillTemplate(templateId, variables);
+  }
+
+  async addADRTemplate(
+    template: Omit<ADRTemplate, 'id' | 'createdAt' | 'updatedAt'>
+  ): Promise<ADRTemplate> {
+    return this.adrTemplates!.addTemplate(template);
+  }
+
+  async getADRStats(): Promise<{
+    total: number;
+    byStatus: Record<ADRStatus, number>;
+    byTag: Record<string, number>;
+  }> {
+    return this.adrService!.getStats();
+  }
+
+  private createADRPage(adr: ArchitectureDecisionRecord): WikiPage {
+    const content = this.generateADRContent(adr);
+    return this.createPage(
+      `adr-${adr.id}`,
+      `ADR: ${adr.title}`,
+      content,
+      'decision',
+      adr.codeReferences.map((ref) => ref.filePath)
+    );
+  }
+
+  private generateADRContent(adr: ArchitectureDecisionRecord): string {
+    let content = `# ${adr.title}
+
+## Status
+
+**${adr.status.toUpperCase()}**
+
+## Date
+
+${adr.date.toISOString().split('T')[0]}
+
+## Decision Makers
+
+${adr.decisionMakers.join(', ')}
+
+## Context
+
+${adr.context}
+
+## Decision
+
+${adr.decision}
+
+## Consequences
+
+`;
+
+    if (adr.consequences.positive.length > 0) {
+      content += `### Positive
+
+${adr.consequences.positive.map((p) => `- ${p}`).join('\n')}
+
+`;
+    }
+
+    if (adr.consequences.negative.length > 0) {
+      content += `### Negative
+
+${adr.consequences.negative.map((n) => `- ${n}`).join('\n')}
+
+`;
+    }
+
+    if (adr.consequences.neutral.length > 0) {
+      content += `### Neutral
+
+${adr.consequences.neutral.map((n) => `- ${n}`).join('\n')}
+
+`;
+    }
+
+    if (adr.alternatives.length > 0) {
+      content += `## Alternatives Considered
+
+${adr.alternatives
+  .map(
+    (alt) => `### ${alt.name}
+
+${alt.description}
+
+${alt.pros.length > 0 ? `**Pros:** ${alt.pros.join(', ')}` : ''}
+${alt.cons.length > 0 ? `**Cons:** ${alt.cons.join(', ')}` : ''}
+${alt.rejectedReason ? `**Rejected because:** ${alt.rejectedReason}` : ''}
+`
+  )
+  .join('\n')}
+
+`;
+    }
+
+    if (adr.tags.length > 0) {
+      content += `## Tags
+
+${adr.tags.map((t) => `\`${t}\``).join(' ')}
+
+`;
+    }
+
+    if (adr.codeReferences.length > 0) {
+      content += `## Code References
+
+${adr.codeReferences.map((ref) => `- [${ref.filePath}${ref.lineStart ? `:${ref.lineStart}` : ''}](${ref.filePath})`).join('\n')}
+`;
+    }
+
+    return content;
   }
 }

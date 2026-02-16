@@ -1,11 +1,11 @@
-export type DiagramType = 
-  | 'flowchart' 
-  | 'sequence' 
-  | 'class' 
-  | 'state' 
-  | 'er' 
-  | 'gantt' 
-  | 'pie' 
+export type DiagramType =
+  | 'flowchart'
+  | 'sequence'
+  | 'class'
+  | 'state'
+  | 'er'
+  | 'gantt'
+  | 'pie'
   | 'mindmap'
   | 'architecture'
   | 'dependency';
@@ -21,23 +21,23 @@ export interface DiagramNode {
   metadata?: Record<string, unknown>;
 }
 
-export type DiagramNodeType = 
-  | 'class' 
-  | 'interface' 
-  | 'module' 
-  | 'function' 
-  | 'variable' 
-  | 'process' 
-  | 'decision' 
+export type DiagramNodeType =
+  | 'class'
+  | 'interface'
+  | 'module'
+  | 'function'
+  | 'variable'
+  | 'process'
+  | 'decision'
   | 'database'
   | 'external';
 
-export type NodeShape = 
-  | 'rectangle' 
-  | 'rounded' 
-  | 'circle' 
-  | 'diamond' 
-  | 'hexagon' 
+export type NodeShape =
+  | 'rectangle'
+  | 'rounded'
+  | 'circle'
+  | 'diamond'
+  | 'hexagon'
   | 'parallelogram'
   | 'cylinder';
 
@@ -60,14 +60,14 @@ export interface DiagramEdge {
   style?: EdgeStyle;
 }
 
-export type EdgeType = 
-  | 'association' 
-  | 'dependency' 
-  | 'inheritance' 
-  | 'implementation' 
-  | 'composition' 
-  | 'aggregation' 
-  | 'flow' 
+export type EdgeType =
+  | 'association'
+  | 'dependency'
+  | 'inheritance'
+  | 'implementation'
+  | 'composition'
+  | 'aggregation'
+  | 'flow'
   | 'data';
 
 export interface EdgeStyle {
@@ -151,10 +151,10 @@ export interface IDiagramGenerator {
   export(diagram: Diagram, format: DiagramFormat): string;
 }
 
-export type DiagramConfig = 
-  | ArchitectureDiagramConfig 
-  | DependencyDiagramConfig 
-  | FlowDiagramConfig 
+export type DiagramConfig =
+  | ArchitectureDiagramConfig
+  | DependencyDiagramConfig
+  | FlowDiagramConfig
   | SequenceDiagramConfig;
 
 export interface MermaidOptions {

@@ -1,9 +1,5 @@
 import { LLMService } from '../llm';
-import {
-  IContextCompressor,
-  CompressedContext,
-  ConversationMessage,
-} from './types';
+import { IContextCompressor, CompressedContext, ConversationMessage } from './types';
 
 export class WikiContextCompressor implements IContextCompressor {
   private llmService: LLMService | null = null;
@@ -48,7 +44,8 @@ export class WikiContextCompressor implements IContextCompressor {
       const messages = [
         {
           role: 'system' as const,
-          content: 'Extract the key points from the following context. Return a JSON array of strings, each being a key point.',
+          content:
+            'Extract the key points from the following context. Return a JSON array of strings, each being a key point.',
         },
         {
           role: 'user' as const,
@@ -74,14 +71,13 @@ export class WikiContextCompressor implements IContextCompressor {
     }
 
     try {
-      const conversationText = messages
-        .map((m) => `${m.role}: ${m.content}`)
-        .join('\n');
+      const conversationText = messages.map((m) => `${m.role}: ${m.content}`).join('\n');
 
       const llmMessages = [
         {
           role: 'system' as const,
-          content: 'Summarize the following conversation history concisely, preserving important decisions and context.',
+          content:
+            'Summarize the following conversation history concisely, preserving important decisions and context.',
         },
         {
           role: 'user' as const,
@@ -159,11 +155,7 @@ export class WikiContextCompressor implements IContextCompressor {
     return keyPoints;
   }
 
-  private generateLocalSummary(
-    context: string,
-    keyPoints: string[],
-    targetTokens: number
-  ): string {
+  private generateLocalSummary(context: string, keyPoints: string[], targetTokens: number): string {
     const targetChars = targetTokens * this.avgCharsPerToken;
 
     if (keyPoints.length > 0) {
@@ -207,9 +199,7 @@ export class WikiContextCompressor implements IContextCompressor {
     if (currentContent.length > 0) {
       const combinedContent = currentContent.join(' ');
       const truncated =
-        combinedContent.length > 100
-          ? combinedContent.substring(0, 100) + '...'
-          : combinedContent;
+        combinedContent.length > 100 ? combinedContent.substring(0, 100) + '...' : combinedContent;
       summaries.push(`${currentRole}: ${truncated}`);
     }
 

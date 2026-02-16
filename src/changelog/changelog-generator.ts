@@ -18,14 +18,15 @@ export class ChangelogGenerator implements IChangelogGenerator {
     this.config = { ...DEFAULT_CHANGELOG_CONFIG, ...config };
   }
 
-  async generate(commits: ConventionalCommit[], config?: Partial<ChangelogConfig>): Promise<Changelog> {
+  async generate(
+    commits: ConventionalCommit[],
+    config?: Partial<ChangelogConfig>
+  ): Promise<Changelog> {
     const effectiveConfig = config ? { ...this.config, ...config } : this.config;
 
     const filteredCommits = this.filterCommits(commits, effectiveConfig);
     const versions = this.groupByVersion(filteredCommits);
-    const unreleased = this.groupByType(
-      filteredCommits.filter((c) => !this.hasVersion(c))
-    );
+    const unreleased = this.groupByType(filteredCommits.filter((c) => !this.hasVersion(c)));
 
     const changelog: Changelog = {
       title: effectiveConfig.title,
@@ -38,7 +39,10 @@ export class ChangelogGenerator implements IChangelogGenerator {
     return changelog;
   }
 
-  async generateForVersion(commits: ConventionalCommit[], version: string): Promise<ChangelogVersion> {
+  async generateForVersion(
+    commits: ConventionalCommit[],
+    version: string
+  ): Promise<ChangelogVersion> {
     const filteredCommits = this.filterCommits(commits, this.config);
     const sections = this.groupByType(filteredCommits);
 
@@ -50,7 +54,10 @@ export class ChangelogGenerator implements IChangelogGenerator {
     };
   }
 
-  private filterCommits(commits: ConventionalCommit[], config: ChangelogConfig): ConventionalCommit[] {
+  private filterCommits(
+    commits: ConventionalCommit[],
+    config: ChangelogConfig
+  ): ConventionalCommit[] {
     return commits.filter((commit) => {
       for (const pattern of config.excludePatterns) {
         if (typeof pattern === 'string') {

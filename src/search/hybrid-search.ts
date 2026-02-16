@@ -196,8 +196,7 @@ export class HybridSearch implements ISearchEngine {
     for (const [docId, scores] of combinedScores) {
       const doc = this.documents.get(docId);
       if (doc) {
-        const combinedScore =
-          scores.keyword * keywordWeight + scores.semantic * semanticWeight;
+        const combinedScore = scores.keyword * keywordWeight + scores.semantic * semanticWeight;
         results.push({
           document: doc,
           score: combinedScore,
@@ -237,17 +236,31 @@ export class HybridSearch implements ISearchEngine {
       case 'ne':
         return value !== filter.value;
       case 'in':
-        return Array.isArray(filter.value) && (filter.value as (string | number)[]).includes(value as string | number);
+        return (
+          Array.isArray(filter.value) &&
+          (filter.value as (string | number)[]).includes(value as string | number)
+        );
       case 'nin':
-        return Array.isArray(filter.value) && !(filter.value as (string | number)[]).includes(value as string | number);
+        return (
+          Array.isArray(filter.value) &&
+          !(filter.value as (string | number)[]).includes(value as string | number)
+        );
       case 'gt':
-        return typeof value === 'number' && typeof filter.value === 'number' && value > filter.value;
+        return (
+          typeof value === 'number' && typeof filter.value === 'number' && value > filter.value
+        );
       case 'lt':
-        return typeof value === 'number' && typeof filter.value === 'number' && value < filter.value;
+        return (
+          typeof value === 'number' && typeof filter.value === 'number' && value < filter.value
+        );
       case 'gte':
-        return typeof value === 'number' && typeof filter.value === 'number' && value >= filter.value;
+        return (
+          typeof value === 'number' && typeof filter.value === 'number' && value >= filter.value
+        );
       case 'lte':
-        return typeof value === 'number' && typeof filter.value === 'number' && value <= filter.value;
+        return (
+          typeof value === 'number' && typeof filter.value === 'number' && value <= filter.value
+        );
       case 'contains':
         return typeof value === 'string' && value.includes(filter.value as string);
       default:

@@ -21,10 +21,7 @@ export class DependencyDiagramGenerator {
     this.mermaidGenerator = new MermaidGenerator();
   }
 
-  async generate(
-    architecture: ArchitectureReport,
-    parsedFiles?: ParsedFile[]
-  ): Promise<Diagram> {
+  async generate(architecture: ArchitectureReport, parsedFiles?: ParsedFile[]): Promise<Diagram> {
     const nodes: DiagramNode[] = [];
     const edges: DiagramEdge[] = [];
     const clusters: DiagramCluster[] = [];
@@ -67,10 +64,7 @@ export class DependencyDiagramGenerator {
     };
   }
 
-  private buildDependencyMap(
-    parsedFiles: ParsedFile[],
-    moduleMap: Map<string, Set<string>>
-  ): void {
+  private buildDependencyMap(parsedFiles: ParsedFile[], moduleMap: Map<string, Set<string>>): void {
     for (const file of parsedFiles) {
       const moduleName = this.extractModuleName(file.path);
 

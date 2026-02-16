@@ -1,13 +1,7 @@
 import { EventEmitter } from 'events';
 import { GitWatcher, GitService } from '../git';
 import { IncrementalUpdater } from '../sync';
-import {
-  IWikiAutoSync,
-  AutoSyncConfig,
-  SyncStatus,
-  SyncError,
-  OutdatedPage,
-} from './types';
+import { IWikiAutoSync, AutoSyncConfig, SyncStatus, SyncError, OutdatedPage } from './types';
 
 export class WikiAutoSync extends EventEmitter implements IWikiAutoSync {
   private projectPath: string;
@@ -25,9 +19,7 @@ export class WikiAutoSync extends EventEmitter implements IWikiAutoSync {
     super();
     this.projectPath = projectPath;
     this.gitService = new GitService();
-    this.incrementalUpdater = new IncrementalUpdater(
-      `${projectPath}/.wiki/snapshots`
-    );
+    this.incrementalUpdater = new IncrementalUpdater(`${projectPath}/.wiki/snapshots`);
   }
 
   async start(config: AutoSyncConfig): Promise<void> {
@@ -96,7 +88,7 @@ export class WikiAutoSync extends EventEmitter implements IWikiAutoSync {
 
     try {
       const isRepo = await this.gitService.isGitRepo(this.projectPath);
-      
+
       if (isRepo) {
         const headCommit = await this.gitService.getHeadCommit(this.projectPath);
         const snapshot = await this.incrementalUpdater.getLatestSnapshot();

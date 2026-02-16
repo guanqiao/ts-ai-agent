@@ -1,10 +1,6 @@
 import * as fs from 'fs';
 import { Language } from '../types';
-import {
-  ITestParser,
-  TestFileInfo,
-  TestFunction,
-} from './types';
+import { ITestParser, TestFileInfo, TestFunction } from './types';
 
 export class TestParser implements ITestParser {
   async parse(filePath: string): Promise<TestFileInfo> {
@@ -48,15 +44,18 @@ export class TestParser implements ITestParser {
 
     const patterns = [
       {
-        regex: /(it|test)\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*(async\s*)?\(\s*\)\s*=>\s*\{([\s\S]*?)\}\s*\)/g,
+        regex:
+          /(it|test)\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*(async\s*)?\(\s*\)\s*=>\s*\{([\s\S]*?)\}\s*\)/g,
         isAsync: (match: RegExpExecArray) => !!match[3],
       },
       {
-        regex: /(it|test)\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*(async\s*)?\(\s*\)\s*=>\s*\(?\s*([\s\S]*?)\s*\)?\s*\)/g,
+        regex:
+          /(it|test)\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*(async\s*)?\(\s*\)\s*=>\s*\(?\s*([\s\S]*?)\s*\)?\s*\)/g,
         isAsync: (match: RegExpExecArray) => !!match[3],
       },
       {
-        regex: /(it|test)\.skip\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*(async\s*)?\(\s*\)\s*=>\s*\{([\s\S]*?)\}\s*\)/g,
+        regex:
+          /(it|test)\.skip\s*\(\s*['"`]([^'"`]+)['"`]\s*,\s*(async\s*)?\(\s*\)\s*=>\s*\{([\s\S]*?)\}\s*\)/g,
         isAsync: (match: RegExpExecArray) => !!match[3],
         isSkipped: true,
       },
@@ -89,7 +88,8 @@ export class TestParser implements ITestParser {
   private parsePytestTests(code: string): TestFunction[] {
     const tests: TestFunction[] = [];
 
-    const functionPattern = /(?:async\s+)?def\s+(test_\w+)\s*\(([^)]*)\)\s*:\s*\n((?:[ \t]+[^\n]*\n)*)/g;
+    const functionPattern =
+      /(?:async\s+)?def\s+(test_\w+)\s*\(([^)]*)\)\s*:\s*\n((?:[ \t]+[^\n]*\n)*)/g;
 
     let match;
     while ((match = functionPattern.exec(code)) !== null) {
@@ -119,7 +119,8 @@ export class TestParser implements ITestParser {
   private parseJUnitTests(code: string): TestFunction[] {
     const tests: TestFunction[] = [];
 
-    const methodPattern = /@(Test|BeforeEach|AfterEach|BeforeAll|AfterAll)\s*(?:\n\s*)*(?:public\s+)?(?:static\s+)?void\s+(\w+)\s*\(\s*\)\s*(?:throws\s+[\w\s,]+)?\s*\{([\s\S]*?)\}/g;
+    const methodPattern =
+      /@(Test|BeforeEach|AfterEach|BeforeAll|AfterAll)\s*(?:\n\s*)*(?:public\s+)?(?:static\s+)?void\s+(\w+)\s*\(\s*\)\s*(?:throws\s+[\w\s,]+)?\s*\{([\s\S]*?)\}/g;
 
     let match;
     while ((match = methodPattern.exec(code)) !== null) {
@@ -155,9 +156,7 @@ export class TestParser implements ITestParser {
         /expect\s*\([^)]+\)\.(?:toBe|toEqual|toBeTruthy|toBeFalsy|toContain|toHaveLength|toThrow|toMatch|toBeDefined|toBeNull)\s*\([^)]*\)/g,
         /assert\s*\([^)]+\)/g,
       ],
-      pytest: [
-        /assert\s+[\s\S]+?(?=\n|$)/g,
-      ],
+      pytest: [/assert\s+[\s\S]+?(?=\n|$)/g],
       junit: [
         /assertEquals\s*\([^)]+\)/g,
         /assertTrue\s*\([^)]+\)/g,
@@ -215,7 +214,9 @@ export class TestParser implements ITestParser {
     switch (language) {
       case Language.TypeScript:
       case Language.JavaScript:
-        const beforeEachMatch = code.match(/beforeEach\s*\(\s*(?:async\s*)?\(\s*\)\s*=>\s*\{([\s\S]*?)\}\s*\)/);
+        const beforeEachMatch = code.match(
+          /beforeEach\s*\(\s*(?:async\s*)?\(\s*\)\s*=>\s*\{([\s\S]*?)\}\s*\)/
+        );
         return beforeEachMatch ? beforeEachMatch[1].trim() : undefined;
 
       case Language.Python:
@@ -231,11 +232,15 @@ export class TestParser implements ITestParser {
     switch (language) {
       case Language.TypeScript:
       case Language.JavaScript:
-        const afterEachMatch = code.match(/afterEach\s*\(\s*(?:async\s*)?\(\s*\)\s*=>\s*\{([\s\S]*?)\}\s*\)/);
+        const afterEachMatch = code.match(
+          /afterEach\s*\(\s*(?:async\s*)?\(\s*\)\s*=>\s*\{([\s\S]*?)\}\s*\)/
+        );
         return afterEachMatch ? afterEachMatch[1].trim() : undefined;
 
       case Language.Python:
-        const teardownMatch = code.match(/def\s+teardown\s*\([^)]*\)\s*:\s*\n((?:[ \t]+[^\n]*\n)*)/);
+        const teardownMatch = code.match(
+          /def\s+teardown\s*\([^)]*\)\s*:\s*\n((?:[ \t]+[^\n]*\n)*)/
+        );
         return teardownMatch ? teardownMatch[0] : undefined;
 
       default:

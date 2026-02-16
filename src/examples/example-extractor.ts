@@ -20,7 +20,10 @@ export class ExampleExtractor implements IExampleExtractor {
     this.testParser = new TestParser();
   }
 
-  async extract(files: string[], config?: Partial<ExampleExtractionConfig>): Promise<CodeExample[]> {
+  async extract(
+    files: string[],
+    config?: Partial<ExampleExtractionConfig>
+  ): Promise<CodeExample[]> {
     const effectiveConfig = config ? { ...this.config, ...config } : this.config;
     const examples: CodeExample[] = [];
 
@@ -236,15 +239,16 @@ export class ExampleExtractor implements IExampleExtractor {
   private cleanTestCode(code: string): string {
     let cleaned = code;
 
-    cleaned = cleaned.replace(/^(test|it|describe)\s*\(['"`][^'"`]+['"`],\s*(async\s*)?\(\s*\)\s*=>\s*\{?\n?/gm, '');
+    cleaned = cleaned.replace(
+      /^(test|it|describe)\s*\(['"`][^'"`]+['"`],\s*(async\s*)?\(\s*\)\s*=>\s*\{?\n?/gm,
+      ''
+    );
     cleaned = cleaned.replace(/\}\);?\s*$/gm, '');
     cleaned = cleaned.replace(/^\s*\}\s*$/gm, '');
 
     const lines = cleaned.split('\n');
     const minIndent = Math.min(
-      ...lines
-        .filter((l) => l.trim())
-        .map((l) => l.match(/^(\s*)/)?.[1].length || 0)
+      ...lines.filter((l) => l.trim()).map((l) => l.match(/^(\s*)/)?.[1].length || 0)
     );
 
     cleaned = lines.map((l) => l.substring(minIndent)).join('\n');
@@ -282,7 +286,10 @@ export class ExampleExtractor implements IExampleExtractor {
 
     while ((match = functionPattern.exec(code)) !== null) {
       const symbol = match[1];
-      if (!symbols.includes(symbol) && !['Promise', 'Array', 'Object', 'String', 'Number', 'Boolean'].includes(symbol)) {
+      if (
+        !symbols.includes(symbol) &&
+        !['Promise', 'Array', 'Object', 'String', 'Number', 'Boolean'].includes(symbol)
+      ) {
         symbols.push(symbol);
       }
     }
@@ -295,7 +302,8 @@ export class ExampleExtractor implements IExampleExtractor {
     const hasAsync = code.includes('async') || code.includes('await');
     const hasClasses = code.includes('class ');
     const hasGenerics = code.includes('<') && code.includes('>');
-    const hasComplexPatterns = code.includes('Promise') || code.includes('Observable') || code.includes('EventEmitter');
+    const hasComplexPatterns =
+      code.includes('Promise') || code.includes('Observable') || code.includes('EventEmitter');
 
     let score = 0;
     if (lines > 20) score += 1;

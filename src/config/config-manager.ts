@@ -49,7 +49,9 @@ export class ConfigManager implements IConfigManager {
 
     const validation = await this.validate(config);
     if (!validation.valid) {
-      throw new Error(`Invalid configuration: ${validation.errors.map((e) => e.message).join(', ')}`);
+      throw new Error(
+        `Invalid configuration: ${validation.errors.map((e) => e.message).join(', ')}`
+      );
     }
 
     fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));

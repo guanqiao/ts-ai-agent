@@ -82,10 +82,7 @@ export class FlowDiagramGenerator {
     };
   }
 
-  async generateFromFunction(
-    parsedFiles: ParsedFile[],
-    functionName: string
-  ): Promise<Diagram> {
+  async generateFromFunction(parsedFiles: ParsedFile[], functionName: string): Promise<Diagram> {
     const steps: FlowStep[] = [];
 
     for (const file of parsedFiles) {
@@ -161,17 +158,26 @@ export class FlowDiagramGenerator {
       if (!trimmed) continue;
 
       let type: FlowStep['type'] = 'process';
-      let label = trimmed;
+      const label = trimmed;
 
       if (trimmed.toLowerCase().startsWith('start') || trimmed.toLowerCase().startsWith('begin')) {
         type = 'start';
-      } else if (trimmed.toLowerCase().startsWith('end') || trimmed.toLowerCase().startsWith('stop')) {
+      } else if (
+        trimmed.toLowerCase().startsWith('end') ||
+        trimmed.toLowerCase().startsWith('stop')
+      ) {
         type = 'end';
       } else if (trimmed.includes('?') || trimmed.toLowerCase().startsWith('if')) {
         type = 'decision';
-      } else if (trimmed.toLowerCase().startsWith('input') || trimmed.toLowerCase().startsWith('output')) {
+      } else if (
+        trimmed.toLowerCase().startsWith('input') ||
+        trimmed.toLowerCase().startsWith('output')
+      ) {
         type = 'io';
-      } else if (trimmed.toLowerCase().startsWith('call') || trimmed.toLowerCase().startsWith('invoke')) {
+      } else if (
+        trimmed.toLowerCase().startsWith('call') ||
+        trimmed.toLowerCase().startsWith('invoke')
+      ) {
         type = 'subprocess';
       }
 
@@ -199,7 +205,9 @@ export class FlowDiagramGenerator {
     }
   }
 
-  private getShapeForType(type: string): 'rounded' | 'diamond' | 'parallelogram' | 'hexagon' | 'circle' {
+  private getShapeForType(
+    type: string
+  ): 'rounded' | 'diamond' | 'parallelogram' | 'hexagon' | 'circle' {
     switch (type) {
       case 'start':
       case 'end':

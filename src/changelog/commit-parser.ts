@@ -13,8 +13,8 @@ export class CommitParser implements ICommitParser {
 
   constructor() {
     this.typePatterns = this.buildTypePatterns();
-    this.excludePatterns = DEFAULT_CHANGELOG_CONFIG.excludePatterns.map(
-      (p) => (typeof p === 'string' ? new RegExp(p, 'i') : p)
+    this.excludePatterns = DEFAULT_CHANGELOG_CONFIG.excludePatterns.map((p) =>
+      typeof p === 'string' ? new RegExp(p, 'i') : p
     );
   }
 
@@ -52,7 +52,9 @@ export class CommitParser implements ICommitParser {
   }
 
   parseBatch(commits: RawCommit[]): ConventionalCommit[] {
-    return commits.map((commit) => this.parse(commit.message, commit.hash, commit.author, commit.date));
+    return commits.map((commit) =>
+      this.parse(commit.message, commit.hash, commit.author, commit.date)
+    );
   }
 
   private parseConventionalCommit(message: string): Partial<ConventionalCommit> | null {
@@ -101,7 +103,7 @@ export class CommitParser implements ICommitParser {
     breakingChangeNote?: string;
   } {
     const footers: CommitFooter[] = [];
-    let bodyLines: string[] = [];
+    const bodyLines: string[] = [];
     let breakingChange = false;
     let breakingChangeNote: string | undefined;
 

@@ -1,11 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { ParsedFile } from '../types';
-import {
-  IWikiMemory,
-  CodingPattern,
-  ProjectConvention,
-} from './types';
+import { IWikiMemory, CodingPattern, ProjectConvention } from './types';
 
 export class WikiMemory implements IWikiMemory {
   private patterns: Map<string, CodingPattern> = new Map();
@@ -103,7 +99,9 @@ export class WikiMemory implements IWikiMemory {
     await this.saveToDisk();
   }
 
-  private async discoverNamingConvention(parsedFiles: ParsedFile[]): Promise<ProjectConvention | null> {
+  private async discoverNamingConvention(
+    parsedFiles: ParsedFile[]
+  ): Promise<ProjectConvention | null> {
     const namingPatterns: Map<string, number> = new Map();
 
     for (const file of parsedFiles) {
@@ -139,7 +137,9 @@ export class WikiMemory implements IWikiMemory {
     };
   }
 
-  private async discoverImportConvention(parsedFiles: ParsedFile[]): Promise<ProjectConvention | null> {
+  private async discoverImportConvention(
+    parsedFiles: ParsedFile[]
+  ): Promise<ProjectConvention | null> {
     const importStyles: Map<string, number> = new Map();
     const examples: string[] = [];
 
@@ -176,12 +176,15 @@ export class WikiMemory implements IWikiMemory {
         },
       ],
       examples: examples.slice(0, 5),
-      confidence: dominantStyle[1] / ((importStyles.get('named') || 0) + (importStyles.get('default') || 0)),
+      confidence:
+        dominantStyle[1] / ((importStyles.get('named') || 0) + (importStyles.get('default') || 0)),
       discoveredAt: new Date(),
     };
   }
 
-  private async discoverCommentConvention(parsedFiles: ParsedFile[]): Promise<ProjectConvention | null> {
+  private async discoverCommentConvention(
+    parsedFiles: ParsedFile[]
+  ): Promise<ProjectConvention | null> {
     const commentStyles: Map<string, number> = new Map();
     const examples: string[] = [];
 
@@ -196,7 +199,10 @@ export class WikiMemory implements IWikiMemory {
 
       const singleLineMatches = content.match(/\/\/.*$/gm) || [];
       if (singleLineMatches.length > 0) {
-        commentStyles.set('single-line', (commentStyles.get('single-line') || 0) + singleLineMatches.length);
+        commentStyles.set(
+          'single-line',
+          (commentStyles.get('single-line') || 0) + singleLineMatches.length
+        );
         examples.push(...singleLineMatches.slice(0, 3));
       }
     }
@@ -225,7 +231,9 @@ export class WikiMemory implements IWikiMemory {
     };
   }
 
-  private async discoverStructureConvention(parsedFiles: ParsedFile[]): Promise<ProjectConvention | null> {
+  private async discoverStructureConvention(
+    parsedFiles: ParsedFile[]
+  ): Promise<ProjectConvention | null> {
     const structures: Map<string, number> = new Map();
     const examples: string[] = [];
 

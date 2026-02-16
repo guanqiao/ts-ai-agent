@@ -25,9 +25,7 @@ export class WikiSyncMonitor extends EventEmitter implements IWikiSyncMonitor {
     super();
     this.projectPath = projectPath;
     this.gitService = new GitService();
-    this.incrementalUpdater = new IncrementalUpdater(
-      path.join(projectPath, '.wiki', 'snapshots')
-    );
+    this.incrementalUpdater = new IncrementalUpdater(path.join(projectPath, '.wiki', 'snapshots'));
   }
 
   async checkSyncStatus(): Promise<SyncStatus> {
@@ -76,8 +74,7 @@ export class WikiSyncMonitor extends EventEmitter implements IWikiSyncMonitor {
               const affectedFiles = page.metadata.sourceFiles.filter((sourceFile) =>
                 changedFiles.some(
                   (changedFile) =>
-                    changedFile === sourceFile ||
-                    sourceFile.startsWith(path.dirname(changedFile))
+                    changedFile === sourceFile || sourceFile.startsWith(path.dirname(changedFile))
                 )
               );
 
@@ -174,8 +171,7 @@ export class WikiSyncMonitor extends EventEmitter implements IWikiSyncMonitor {
 
             const isAffected = page.metadata.sourceFiles.some(
               (sourceFile) =>
-                sourceFile === filePath ||
-                filePath.startsWith(path.dirname(sourceFile))
+                sourceFile === filePath || filePath.startsWith(path.dirname(sourceFile))
             );
 
             if (isAffected) {

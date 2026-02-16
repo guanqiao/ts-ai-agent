@@ -1,10 +1,6 @@
 import { LLMService } from '../llm';
 import { WikiContext } from './types';
-import {
-  IPromptEnhancer,
-  EnhancedPrompt,
-  PromptAddition,
-} from './types';
+import { IPromptEnhancer, EnhancedPrompt, PromptAddition } from './types';
 
 export class WikiPromptEnhancer implements IPromptEnhancer {
   private llmService: LLMService | null = null;
@@ -16,7 +12,9 @@ export class WikiPromptEnhancer implements IPromptEnhancer {
   }
 
   private initializeDefaultTemplates(): void {
-    this.templates.set('code-review', `Please review the following code for:
+    this.templates.set(
+      'code-review',
+      `Please review the following code for:
 - Code quality and best practices
 - Potential bugs or issues
 - Performance considerations
@@ -26,9 +24,12 @@ Code:
 {code}
 
 Context:
-{context}`);
+{context}`
+    );
 
-    this.templates.set('explain', `Please explain the following code in detail:
+    this.templates.set(
+      'explain',
+      `Please explain the following code in detail:
 - What does it do?
 - How does it work?
 - What are the key concepts?
@@ -37,9 +38,12 @@ Code:
 {code}
 
 Additional context:
-{context}`);
+{context}`
+    );
 
-    this.templates.set('refactor', `Please suggest refactoring improvements for the following code:
+    this.templates.set(
+      'refactor',
+      `Please suggest refactoring improvements for the following code:
 - Code organization
 - Design patterns
 - Performance optimizations
@@ -49,9 +53,12 @@ Code:
 {code}
 
 Current architecture:
-{context}`);
+{context}`
+    );
 
-    this.templates.set('test', `Please generate tests for the following code:
+    this.templates.set(
+      'test',
+      `Please generate tests for the following code:
 - Unit tests for all functions
 - Edge cases to consider
 - Mock dependencies if needed
@@ -60,7 +67,8 @@ Code:
 {code}
 
 Project context:
-{context}`);
+{context}`
+    );
   }
 
   async enhance(prompt: string, context?: WikiContext): Promise<EnhancedPrompt> {
@@ -150,7 +158,10 @@ Project context:
     const arch = context.architecture;
     const content = `Architecture Pattern: ${arch.pattern.pattern}
 Layers: ${arch.layers.map((l: { name: string }) => l.name).join(', ')}
-Key Modules: ${arch.modules.slice(0, 5).map((m: { name: string }) => m.name).join(', ')}`;
+Key Modules: ${arch.modules
+      .slice(0, 5)
+      .map((m: { name: string }) => m.name)
+      .join(', ')}`;
 
     return {
       type: 'architecture',
@@ -164,7 +175,11 @@ Key Modules: ${arch.modules.slice(0, 5).map((m: { name: string }) => m.name).joi
 
     const graph = context.architecture.dependencyGraph;
     const topModules = Object.entries(graph.nodes)
-      .sort((a, b) => (b[1] as { dependencies: string[] }).dependencies.length - (a[1] as { dependencies: string[] }).dependencies.length)
+      .sort(
+        (a, b) =>
+          (b[1] as { dependencies: string[] }).dependencies.length -
+          (a[1] as { dependencies: string[] }).dependencies.length
+      )
       .slice(0, 5);
 
     if (topModules.length === 0) return null;
@@ -185,7 +200,8 @@ ${topModules.map(([name, node]) => `- ${name}: ${(node as { dependencies: string
     const messages = [
       {
         role: 'system' as const,
-        content: 'You are a prompt engineering assistant. Refine the following prompt to be clearer and more effective while preserving the original intent. Return only the refined prompt.',
+        content:
+          'You are a prompt engineering assistant. Refine the following prompt to be clearer and more effective while preserving the original intent. Return only the refined prompt.',
       },
       {
         role: 'user' as const,

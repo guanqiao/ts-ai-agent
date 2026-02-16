@@ -202,7 +202,10 @@ program
 program
   .command('wiki')
   .description('Wiki management commands')
-  .argument('<action>', 'Action to perform (init, generate, watch, query, export, architecture, sync, search, config)')
+  .argument(
+    '<action>',
+    'Action to perform (init, generate, watch, query, export, architecture, sync, search, config)'
+  )
   .argument('[input]', 'Input directory path', '.')
   .option('-o, --output <path>', 'Output directory', './wiki')
   .option('-f, --format <format>', 'Output format (markdown, github-wiki, confluence)', 'markdown')
@@ -521,13 +524,17 @@ async function handleWikiSync(wikiManager: WikiManager, options: any, spinner: a
 
     console.log(chalk.blue('\n## Sync Status'));
     console.log(`  Is Synced: ${status.isSynced ? chalk.green('Yes') : chalk.yellow('No')}`);
-    console.log(`  Last Sync: ${status.lastSyncTime ? new Date(status.lastSyncTime).toLocaleString() : 'Never'}`);
+    console.log(
+      `  Last Sync: ${status.lastSyncTime ? new Date(status.lastSyncTime).toLocaleString() : 'Never'}`
+    );
     console.log(`  Pending Changes: ${status.pendingChanges}`);
     console.log(`  Errors: ${status.errors.length}`);
 
     console.log(chalk.blue('\n## Sync Health'));
     console.log(`  Score: ${health.score}/100`);
-    console.log(`  Status: ${health.status === 'healthy' ? chalk.green(health.status) : health.status === 'warning' ? chalk.yellow(health.status) : chalk.red(health.status)}`);
+    console.log(
+      `  Status: ${health.status === 'healthy' ? chalk.green(health.status) : health.status === 'warning' ? chalk.yellow(health.status) : chalk.red(health.status)}`
+    );
     console.log(`  Message: ${health.message}`);
 
     if (status.outdatedPages.length > 0) {
@@ -544,7 +551,12 @@ async function handleWikiSync(wikiManager: WikiManager, options: any, spinner: a
   }
 }
 
-async function handleWikiSearch(inputPath: string, query: string | undefined, options: any, spinner: any): Promise<void> {
+async function handleWikiSearch(
+  inputPath: string,
+  query: string | undefined,
+  options: any,
+  spinner: any
+): Promise<void> {
   if (!query) {
     spinner.fail('Please provide a search query with --search option');
     process.exit(1);
@@ -653,7 +665,9 @@ async function handleWikiConfig(inputPath: string, options: any, spinner: any): 
   console.log(`  Model: ${config.llm.model}`);
   console.log(`  Temperature: ${config.llm.temperature}`);
 
-  console.log(chalk.gray('\nUse --show-config for full configuration or --reset-config to reset to defaults'));
+  console.log(
+    chalk.gray('\nUse --show-config for full configuration or --reset-config to reset to defaults')
+  );
 }
 
 async function parseInput(inputPath: string, options: any): Promise<ParseResult> {

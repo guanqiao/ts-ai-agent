@@ -1,14 +1,14 @@
-export type ChangeType = 
-  | 'feat' 
-  | 'fix' 
-  | 'docs' 
-  | 'style' 
-  | 'refactor' 
-  | 'perf' 
-  | 'test' 
-  | 'build' 
-  | 'ci' 
-  | 'chore' 
+export type ChangeType =
+  | 'feat'
+  | 'fix'
+  | 'docs'
+  | 'style'
+  | 'refactor'
+  | 'perf'
+  | 'test'
+  | 'build'
+  | 'ci'
+  | 'chore'
   | 'revert';
 
 export type ChangeScope = string;
@@ -150,11 +150,7 @@ export const DEFAULT_CHANGELOG_CONFIG: ChangelogConfig = {
     { type: 'style', title: 'Styles', showInChangelog: false },
     { type: 'revert', title: 'Reverts', showInChangelog: true },
   ],
-  excludePatterns: [
-    /^merge/i,
-    /^bump/i,
-    /^release/i,
-  ],
+  excludePatterns: [/^merge/i, /^bump/i, /^release/i],
   maxVersions: 50,
 };
 

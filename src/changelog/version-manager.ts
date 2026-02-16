@@ -1,11 +1,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { execSync } from 'child_process';
-import {
-  IVersionManager,
-  VersionInfo,
-  ConventionalCommit,
-} from './types';
+import { IVersionManager, VersionInfo, ConventionalCommit } from './types';
 import { CommitParser } from './commit-parser';
 
 export class VersionManager implements IVersionManager {
@@ -78,10 +74,13 @@ export class VersionManager implements IVersionManager {
       const previousVersion = await this.getPreviousVersion(version);
       const range = previousVersion ? `v${previousVersion}..v${version}` : `v${version}`;
 
-      const log = execSync(`git log ${range} --pretty=format:"%H%n%an%n%aD%n%B%n---COMMIT_END---"`, {
-        cwd: this.projectPath,
-        encoding: 'utf-8',
-      });
+      const log = execSync(
+        `git log ${range} --pretty=format:"%H%n%an%n%aD%n%B%n---COMMIT_END---"`,
+        {
+          cwd: this.projectPath,
+          encoding: 'utf-8',
+        }
+      );
 
       const commits = this.parseGitLog(log);
       return commits;
@@ -161,10 +160,13 @@ export class VersionManager implements IVersionManager {
     const currentVersion = await this.getCurrentVersion();
 
     try {
-      const log = execSync(`git log v${currentVersion}..HEAD --pretty=format:"%H%n%an%n%aD%n%B%n---COMMIT_END---"`, {
-        cwd: this.projectPath,
-        encoding: 'utf-8',
-      });
+      const log = execSync(
+        `git log v${currentVersion}..HEAD --pretty=format:"%H%n%an%n%aD%n%B%n---COMMIT_END---"`,
+        {
+          cwd: this.projectPath,
+          encoding: 'utf-8',
+        }
+      );
 
       return this.parseGitLog(log);
     } catch {
