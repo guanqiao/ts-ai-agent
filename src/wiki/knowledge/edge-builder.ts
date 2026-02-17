@@ -5,7 +5,6 @@ import {
   KnowledgeEdge,
   KnowledgeCluster,
   KnowledgeEdgeType,
-  KnowledgeEdgeMetadata,
   KnowledgeNodeType,
 } from './types';
 
@@ -525,6 +524,7 @@ export class EdgeBuilder {
       name: `${dominantType} cluster (${nodes.length} nodes)`,
       description: `Cluster of ${nodes.length} ${dominantType} nodes`,
       nodeIds,
+      centrality: cohesion,
       cohesion,
       dominantType: dominantType as KnowledgeNodeType,
       tags: [...allTags],
@@ -575,18 +575,18 @@ export class EdgeBuilder {
     weight: number,
     inferred: boolean
   ): KnowledgeEdge {
-    const metadata: KnowledgeEdgeMetadata = {
-      inferred,
-      confidence: inferred ? 0.7 : 0.9,
-    };
-
     return {
       id: this.generateEdgeId(sourceId, targetId, type),
+      source: sourceId,
+      target: targetId,
       sourceId,
       targetId,
       type,
       weight,
-      metadata,
+      metadata: {
+        inferred,
+        confidence: inferred ? 0.7 : 0.9,
+      },
       createdAt: new Date(),
     };
   }

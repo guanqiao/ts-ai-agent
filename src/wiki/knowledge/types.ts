@@ -1,9 +1,16 @@
 export type KnowledgeNodeType = 'concept' | 'api' | 'pattern' | 'component' | 'module' | 'page' | 'decision';
 
+export type KnowledgeEdgeType = 'depends-on' | 'implements' | 'extends' | 'calls' | 'references' | 'related-to';
+
 export interface KnowledgeNodeMetadata {
   stability?: 'stable' | 'experimental' | 'deprecated';
   tags: string[];
   importance?: number;
+}
+
+export interface KnowledgeEdgeMetadata {
+  inferred?: boolean;
+  confidence?: number;
 }
 
 export interface KnowledgeNode {
@@ -20,6 +27,9 @@ export interface KnowledgeNode {
   metadata: KnowledgeNodeMetadata;
   createdAt: Date;
   updatedAt: Date;
+  sourcePageId?: string;
+  sourceFile?: string;
+  embedding?: number[];
 }
 
 export interface KnowledgeEdge {
@@ -28,9 +38,11 @@ export interface KnowledgeEdge {
   sourceId: string;
   target: string;
   targetId: string;
-  type: 'related' | 'dependsOn' | 'implements' | 'extends' | 'references';
+  type: KnowledgeEdgeType;
   weight: number;
   label?: string;
+  metadata?: KnowledgeEdgeMetadata;
+  createdAt?: Date;
 }
 
 export interface KnowledgeCluster {
@@ -40,6 +52,9 @@ export interface KnowledgeCluster {
   nodeIds: string[];
   centrality: number;
   cohesion?: number;
+  dominantType?: KnowledgeNodeType;
+  tags?: string[];
+  createdAt?: Date;
 }
 
 export interface KnowledgeGraph {

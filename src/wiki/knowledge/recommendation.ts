@@ -18,9 +18,25 @@ export class RecommendationService {
     this.graph = graph;
   }
 
+  private getNodeMap(): Map<string, KnowledgeNode> {
+    const map = new Map<string, KnowledgeNode>();
+    if (this.graph) {
+      for (const node of this.graph.nodes) {
+        map.set(node.id, node);
+      }
+    }
+    return map;
+  }
+
+  private getEdgeList(): KnowledgeEdge[] {
+    return this.graph?.edges || [];
+  }
+
   findRelated(nodeId: string, maxDepth: number = 2): KnowledgeNode[] {
     if (!this.graph) return [];
 
+    const nodeMap = this.getNodeMap();
+    const edgeList = this.getEdgeList();
     const visited = new Set<string>();
     const related: KnowledgeNode[] = [];
     const queue: Array<{ id: string; depth: number }> = [{ id: nodeId, depth: 0 }];
@@ -31,13 +47,13 @@ export class RecommendationService {
       if (visited.has(id) || depth > maxDepth) continue;
       visited.add(id);
 
-      const node = this.graph.nodes.get(id);
+      const node = nodeMap.get(id);
       if (node && id !== nodeId) {
         related.push(node);
       }
 
       if (depth < maxDepth) {
-        for (const edge of this.graph.edges.values()) {
+        for (const edge of edgeList) {
           if (edge.sourceId === id && !visited.has(edge.targetId)) {
             queue.push({ id: edge.targetId, depth: depth + 1 });
           }
@@ -58,26 +74,22 @@ export class RecommendationService {
     if (!path) return null;
 
     const learningNodes: LearningPathNode[] = path.nodes.map((node, index) => ({
-      node,
-      order: index,
-      isOptional: this.isOptionalNode(node, path!),
+      nodeId: node.id,
+      position: index,
       estimatedTime: this.estimateNodeTime(node),
-      description: this.generateNodeDescription(node, index, path!.nodes.length),
+      prerequisites: index > 0 ? [path.nodes[index - 1].id] : [],
     }));
 
-    const totalEstimatedTime = learningNodes.reduce((sum, n) => sum + (n.estimatedTime || 0), 0);
-
-    const prerequisites = this.identifyPrerequisites(path.nodes);
+    const totalEstimatedTime = learningNodes.reduce((sum, n) => sum + n.estimatedTime, 0);
 
     return {
       id: this.generatePathId(startNodeId, endNodeId),
       name: `Learning path: ${path.nodes[0].name} to ${path.nodes[path.nodes.length - 1].name}`,
       description: `A structured learning path covering ${path.nodes.length} concepts`,
+      nodeIds: path.nodes.map((n) => n.id),
       nodes: learningNodes,
       estimatedTime: totalEstimatedTime,
       difficulty: this.assessDifficulty(path.nodes),
-      prerequisites,
-      createdAt: new Date(),
     };
   }
 
@@ -94,19 +106,19 @@ export class RecommendationService {
       const related = this.findRelated(context.currentPageId, 2);
       for (const node of related) {
         this.addOrUpdateScore(scoredNodes, node, 0.5, {
-          type: 'related',
+          type: 'similarity',
           description: `Related to current page: ${node.name}`,
           weight: 0.5,
         });
       }
     }
 
-    if (context.recentNodeIds && context.recentNodeIds.length > 0) {
-      for (const recentId of context.recentNodeIds) {
+    if (context.recentlyViewed && context.recentlyViewed.length > 0) {
+      for (const recentId of context.recentlyViewed) {
         const related = this.findRelated(recentId, 1);
         for (const node of related) {
           this.addOrUpdateScore(scoredNodes, node, 0.3, {
-            type: 'related',
+            type: 'usage',
             description: `Related to recently viewed: ${node.name}`,
             weight: 0.3,
           });
@@ -114,23 +126,21 @@ export class RecommendationService {
       }
     }
 
-    if (context.searchTerms && context.searchTerms.length > 0) {
-      for (const term of context.searchTerms) {
-        const matchingNodes = this.searchNodes(term);
-        for (const node of matchingNodes) {
-          this.addOrUpdateScore(scoredNodes, node, 0.4, {
-            type: 'related',
-            description: `Matches search term: ${term}`,
-            weight: 0.4,
-          });
-        }
+    if (context.searchQuery) {
+      const matchingNodes = this.searchNodes(context.searchQuery);
+      for (const node of matchingNodes) {
+        this.addOrUpdateScore(scoredNodes, node, 0.4, {
+          type: 'content',
+          description: `Matches search query: ${context.searchQuery}`,
+          weight: 0.4,
+        });
       }
     }
 
-    for (const node of this.graph.nodes.values()) {
+    for (const node of this.graph.nodes) {
       if (node.importance > 0.7) {
         this.addOrUpdateScore(scoredNodes, node, node.importance * 0.2, {
-          type: 'high-importance',
+          type: 'structure',
           description: `High importance node: ${node.name}`,
           weight: node.importance * 0.2,
         });
@@ -139,7 +149,7 @@ export class RecommendationService {
       const daysSinceUpdate = (Date.now() - node.updatedAt.getTime()) / (1000 * 60 * 60 * 24);
       if (daysSinceUpdate < 7) {
         this.addOrUpdateScore(scoredNodes, node, 0.15, {
-          type: 'recently-updated',
+          type: 'usage',
           description: `Recently updated: ${node.name}`,
           weight: 0.15,
         });
@@ -148,15 +158,15 @@ export class RecommendationService {
 
     const sortedRecommendations = Array.from(scoredNodes.values())
       .sort((a, b) => b.score - a.score)
-      .slice(0, context.limit || 10);
+      .slice(0, 10);
 
     for (const item of sortedRecommendations) {
-      const relatedNodes = this.findRelated(item.node.id, 1).slice(0, 3);
       recommendations.push({
-        node: item.node,
+        id: `rec-${item.node.id}`,
+        nodeId: item.node.id,
         score: item.score,
         reason: item.reasons,
-        relatedNodes,
+        type: 'related',
       });
     }
 
@@ -166,6 +176,7 @@ export class RecommendationService {
   private findShortestPath(startId: string, endId: string): KnowledgePath | null {
     if (!this.graph) return null;
 
+    const edgeList = this.getEdgeList();
     const visited = new Set<string>();
     const queue: Array<{ nodeId: string; path: string[] }> = [{ nodeId: startId, path: [startId] }];
 
@@ -179,7 +190,7 @@ export class RecommendationService {
       if (visited.has(nodeId)) continue;
       visited.add(nodeId);
 
-      for (const edge of this.graph.edges.values()) {
+      for (const edge of edgeList) {
         let nextNodeId: string | null = null;
 
         if (edge.sourceId === nodeId && !visited.has(edge.targetId)) {
@@ -203,11 +214,13 @@ export class RecommendationService {
   private buildPathFromNodeIds(nodeIds: string[]): KnowledgePath | null {
     if (!this.graph || nodeIds.length < 2) return null;
 
+    const nodeMap = this.getNodeMap();
+    const edgeList = this.getEdgeList();
     const nodes: KnowledgeNode[] = [];
     const edges: KnowledgeEdge[] = [];
 
     for (const nodeId of nodeIds) {
-      const node = this.graph.nodes.get(nodeId);
+      const node = nodeMap.get(nodeId);
       if (node) {
         nodes.push(node);
       }
@@ -217,7 +230,7 @@ export class RecommendationService {
       const sourceId = nodeIds[i];
       const targetId = nodeIds[i + 1];
 
-      for (const edge of this.graph.edges.values()) {
+      for (const edge of edgeList) {
         if (
           (edge.sourceId === sourceId && edge.targetId === targetId) ||
           (edge.sourceId === targetId && edge.targetId === sourceId)
@@ -231,25 +244,11 @@ export class RecommendationService {
     const weight = edges.reduce((sum, e) => sum + e.weight, 0);
 
     return {
-      startNodeId: nodeIds[0],
-      endNodeId: nodeIds[nodeIds.length - 1],
       nodes,
       edges,
       length: nodes.length,
       weight,
     };
-  }
-
-  private isOptionalNode(node: KnowledgeNode, path: KnowledgePath): boolean {
-    const edgeTypes = new Set<string>();
-
-    for (const edge of path.edges) {
-      if (edge.sourceId === node.id || edge.targetId === node.id) {
-        edgeTypes.add(edge.type);
-      }
-    }
-
-    return edgeTypes.has('related-to') && !edgeTypes.has('depends-on');
   }
 
   private estimateNodeTime(node: KnowledgeNode): number {
@@ -260,9 +259,8 @@ export class RecommendationService {
       api: 2,
       pattern: 3,
       module: 4,
-      class: 2,
-      function: 1.5,
-      interface: 1.5,
+      component: 2,
+      page: 1.5,
       decision: 2,
     };
 
@@ -270,25 +268,6 @@ export class RecommendationService {
     const importanceBonus = node.importance * 5;
 
     return Math.round(baseTime * multiplier + importanceBonus);
-  }
-
-  private generateNodeDescription(node: KnowledgeNode, index: number, total: number): string {
-    const position =
-      index === 0 ? 'Starting point' : index === total - 1 ? 'Final goal' : `Step ${index + 1}`;
-
-    return `${position}: ${node.name} (${node.type})`;
-  }
-
-  private identifyPrerequisites(nodes: KnowledgeNode[]): string[] {
-    const prerequisites: string[] = [];
-
-    for (const node of nodes) {
-      if (node.metadata.stability === 'stable' && node.importance > 0.5) {
-        prerequisites.push(node.name);
-      }
-    }
-
-    return [...new Set(prerequisites)].slice(0, 5);
   }
 
   private assessDifficulty(nodes: KnowledgeNode[]): 'beginner' | 'intermediate' | 'advanced' {
@@ -310,7 +289,7 @@ export class RecommendationService {
     const lowerTerm = term.toLowerCase();
     const results: Array<{ node: KnowledgeNode; score: number }> = [];
 
-    for (const node of this.graph.nodes.values()) {
+    for (const node of this.graph.nodes) {
       let score = 0;
 
       if (node.name.toLowerCase().includes(lowerTerm)) {

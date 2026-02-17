@@ -206,7 +206,7 @@ program
   .description('Wiki management commands')
   .argument(
     '<action>',
-    'Action to perform (init, generate, watch, query, export, architecture, sync, search, config)'
+    'Action to perform (init, generate, watch, query, export, architecture, sync, search, config, share, graph, adr, collab, impact)'
   )
   .argument('[input]', 'Input directory path', '.')
   .option('-o, --output <path>', 'Output directory', './wiki')
@@ -225,6 +225,19 @@ program
   .option('--sync-status', 'Show sync status', false)
   .option('--show-config', 'Show current configuration', false)
   .option('--reset-config', 'Reset configuration to defaults', false)
+  .option('--share-path <path>', 'Path for sharing wiki', './docs/wiki')
+  .option('--share-access <level>', 'Access level (public, team, private)', 'team')
+  .option('--graph-type <type>', 'Graph type (dependency, call, inheritance)', 'dependency')
+  .option('--graph-format <format>', 'Graph format (mermaid, svg, json)', 'mermaid')
+  .option('--adr-title <title>', 'ADR title')
+  .option('--adr-context <context>', 'ADR context')
+  .option('--adr-decision <decision>', 'ADR decision')
+  .option('--adr-status <status>', 'ADR status (proposed, accepted, deprecated)', 'proposed')
+  .option('--adr-id <id>', 'ADR ID')
+  .option('--collab-user <user>', 'Collaborator username')
+  .option('--collab-role <role>', 'Collaborator role (admin, editor, viewer)', 'editor')
+  .option('--impact-file <file>', 'File path for impact analysis')
+  .option('--impact-type <type>', 'Change type (added, modified, removed)', 'modified')
   .action(async (action: string, input: string, options: any) => {
     const spinner = ora('Initializing Wiki...').start();
 
@@ -295,6 +308,26 @@ program
           await handleWikiConfig(inputPath, options, spinner);
           break;
 
+        case 'share':
+          await handleWikiShare(wikiManager, options, spinner);
+          break;
+
+        case 'graph':
+          await handleWikiGraph(wikiManager, inputPath, options, spinner);
+          break;
+
+        case 'adr':
+          await handleWikiADR(wikiManager, options, spinner);
+          break;
+
+        case 'collab':
+          await handleWikiCollab(wikiManager, options, spinner);
+          break;
+
+        case 'impact':
+          await handleWikiImpact(wikiManager, options, spinner);
+          break;
+
         default:
           spinner.fail(`Unknown wiki action: ${action}`);
           console.log(chalk.yellow('\nAvailable actions:'));
@@ -307,6 +340,11 @@ program
           console.log('  sync         - Manage auto-sync (start/stop/status)');
           console.log('  search       - Search wiki documents');
           console.log('  config       - Manage wiki configuration');
+          console.log('  share        - Share wiki to Git repository');
+          console.log('  graph        - Generate dependency/call/inheritance graphs');
+          console.log('  adr          - Manage Architecture Decision Records');
+          console.log('  collab       - Manage collaborators and permissions');
+          console.log('  impact       - Analyze change impact');
           process.exit(1);
       }
     } catch (error) {
@@ -713,6 +751,292 @@ async function parseInput(inputPath: string, options: any): Promise<ParseResult>
     },
     errors: [],
   };
+}
+
+async function handleWikiShare(wikiManager: WikiManager, options: any, spinner: any): Promise<void> {
+  spinner.text = 'Initializing wiki sharing...';
+
+  await wikiManager.initializeSharing({
+    enabled: true,
+    shareToGit: true,
+    sharePath: options.sharePath,
+    accessControl: options.shareAccess,
+    syncWithRemote: true,
+    autoCommit: true,
+  });
+
+  spinner.text = 'Sharing wiki...';
+  const result = await wikiManager.shareWiki();
+
+  if (result.success) {
+    spinner.succeed('Wiki shared successfully');
+    console.log(chalk.green('\n✓ Wiki has been shared'));
+    console.log(chalk.gray(`  Path: ${options.sharePath}`));
+    console.log(chalk.gray(`  Access: ${options.shareAccess}`));
+    if (result.commitHash) {
+      console.log(chalk.gray(`  Commit: ${result.commitHash}`));
+    }
+  } else {
+    spinner.fail('Failed to share wiki');
+    console.log(chalk.red(`  Errors: ${result.errors.map((e: any) => e.message).join(', ')}`));
+  }
+}
+
+async function handleWikiGraph(
+  wikiManager: WikiManager,
+  inputPath: string,
+  options: any,
+  spinner: any
+): Promise<void> {
+  spinner.text = 'Generating graph...';
+
+  const parseResult = await parseInput(inputPath, { language: 'typescript' });
+  const graphType = options.graphType;
+  const graphFormat = options.graphFormat;
+
+  let graph: any;
+  let graphName: string;
+
+  switch (graphType) {
+    case 'call':
+      graph = await wikiManager.generateCallGraph(parseResult.files);
+      graphName = 'Call Graph';
+      break;
+    case 'inheritance':
+      graph = await wikiManager.generateInheritanceGraph(parseResult.files);
+      graphName = 'Inheritance Graph';
+      break;
+    case 'dependency':
+    default:
+      graph = await wikiManager.generateDependencyGraph(parseResult.files);
+      graphName = 'Dependency Graph';
+  }
+
+  let output: string;
+  switch (graphFormat) {
+    case 'svg':
+      output = wikiManager.exportGraphToSVG(graph);
+      break;
+    case 'json':
+      output = wikiManager.exportGraphToJSON(graph);
+      break;
+    case 'mermaid':
+    default:
+      output = wikiManager.exportGraphToMermaid(graph);
+  }
+
+  spinner.succeed(`${graphName} generated`);
+
+  console.log(chalk.blue(`\n## ${graphName}`));
+  console.log(chalk.gray(`Format: ${graphFormat}`));
+  console.log(chalk.gray(`Nodes: ${graph.nodes.length}`));
+  console.log(chalk.gray(`Edges: ${graph.edges.length}`));
+
+  if (graphFormat === 'mermaid') {
+    console.log(chalk.blue('\n## Mermaid Diagram'));
+    console.log('```mermaid');
+    console.log(output);
+    console.log('```');
+  } else {
+    console.log(chalk.blue('\n## Output'));
+    console.log(output.substring(0, 500) + (output.length > 500 ? '...' : ''));
+  }
+
+  const cycles = wikiManager.detectGraphCycles(graph);
+  if (cycles.length > 0) {
+    console.log(chalk.yellow('\n## Cycles Detected'));
+    cycles.slice(0, 5).forEach((cycle: string[], index: number) => {
+      console.log(chalk.yellow(`  ${index + 1}. ${cycle.join(' -> ')}`));
+    });
+    if (cycles.length > 5) {
+      console.log(chalk.gray(`  ... and ${cycles.length - 5} more cycles`));
+    }
+  }
+}
+
+async function handleWikiADR(wikiManager: WikiManager, options: any, spinner: any): Promise<void> {
+  if (options.adrTitle && options.adrContext && options.adrDecision) {
+    spinner.text = 'Creating ADR...';
+    const adr = await wikiManager.createADR(
+      options.adrTitle,
+      options.adrContext,
+      options.adrDecision,
+      'cli-user'
+    );
+    spinner.succeed('ADR created successfully');
+    console.log(chalk.green('\n✓ ADR created'));
+    console.log(chalk.gray(`  ID: ${adr.id}`));
+    console.log(chalk.gray(`  Title: ${adr.title}`));
+    console.log(chalk.gray(`  Status: ${adr.status}`));
+    return;
+  }
+
+  if (options.adrId && options.adrStatus) {
+    spinner.text = 'Updating ADR status...';
+    let adr: any;
+    switch (options.adrStatus) {
+      case 'accepted':
+        adr = await wikiManager.acceptADR(options.adrId, 'cli-user');
+        break;
+      case 'deprecated':
+        adr = await wikiManager.deprecateADR(options.adrId, 'Status changed via CLI', 'cli-user');
+        break;
+      default:
+        adr = await wikiManager.updateADR(options.adrId, { status: options.adrStatus });
+    }
+    spinner.succeed('ADR status updated');
+    console.log(chalk.green('\n✓ ADR updated'));
+    console.log(chalk.gray(`  ID: ${adr.id}`));
+    console.log(chalk.gray(`  Status: ${adr.status}`));
+    return;
+  }
+
+  if (options.adrId) {
+    spinner.text = 'Fetching ADR...';
+    const adr = await wikiManager.getADR(options.adrId);
+    if (!adr) {
+      spinner.fail('ADR not found');
+      return;
+    }
+    spinner.succeed('ADR retrieved');
+    console.log(chalk.blue('\n## ADR Details'));
+    console.log(chalk.green(`ID: ${adr.id}`));
+    console.log(chalk.green(`Title: ${adr.title}`));
+    console.log(chalk.green(`Status: ${adr.status}`));
+    console.log(chalk.green(`Date: ${adr.date.toISOString().split('T')[0]}`));
+    console.log(chalk.blue('\nContext:'));
+    console.log(adr.context);
+    console.log(chalk.blue('\nDecision:'));
+    console.log(adr.decision);
+    return;
+  }
+
+  spinner.text = 'Listing ADRs...';
+  const adrs = await wikiManager.listADRs();
+  spinner.succeed(`Found ${adrs.length} ADRs`);
+
+  console.log(chalk.blue('\n## Architecture Decision Records'));
+  if (adrs.length === 0) {
+    console.log(chalk.yellow('No ADRs found'));
+    console.log(chalk.gray('\nCreate a new ADR with:'));
+    console.log('  tsd-gen wiki adr --adr-title "Title" --adr-context "Context" --adr-decision "Decision"');
+    return;
+  }
+
+  adrs.forEach((adr: any, index: number) => {
+    const statusColor = adr.status === 'accepted' ? chalk.green : 
+                       adr.status === 'deprecated' ? chalk.red : chalk.yellow;
+    console.log(`${index + 1}. ${adr.title} ${statusColor(`[${adr.status}]`)}`);
+    console.log(chalk.gray(`   ID: ${adr.id}`));
+    console.log(chalk.gray(`   Date: ${adr.date.toISOString().split('T')[0]}`));
+  });
+}
+
+async function handleWikiCollab(wikiManager: WikiManager, options: any, spinner: any): Promise<void> {
+  if (options.collabUser && options.collabRole) {
+    spinner.text = 'Adding collaborator...';
+    const contributor = await wikiManager.addContributor(
+      options.collabUser,
+      `${options.collabUser}@example.com`,
+      options.collabRole
+    );
+    spinner.succeed('Collaborator added');
+    console.log(chalk.green('\n✓ Collaborator added'));
+    console.log(chalk.gray(`  Name: ${contributor.name}`));
+    console.log(chalk.gray(`  Role: ${contributor.role}`));
+    return;
+  }
+
+  spinner.text = 'Listing collaborators...';
+  const contributors = await wikiManager.getContributors();
+  spinner.succeed(`Found ${contributors.length} collaborators`);
+
+  console.log(chalk.blue('\n## Collaborators'));
+  if (contributors.length === 0) {
+    console.log(chalk.yellow('No collaborators found'));
+    console.log(chalk.gray('\nAdd a collaborator with:'));
+    console.log('  tsd-gen wiki collab --collab-user "username" --collab-role "editor"');
+    return;
+  }
+
+  contributors.forEach((contributor: any, index: number) => {
+    const roleColor = contributor.role === 'admin' ? chalk.red : 
+                     contributor.role === 'editor' ? chalk.green : chalk.gray;
+    console.log(`${index + 1}. ${contributor.name} ${roleColor(`[${contributor.role}]`)}`);
+    console.log(chalk.gray(`   Email: ${contributor.email}`));
+    console.log(chalk.gray(`   Joined: ${contributor.joinedAt.toISOString().split('T')[0]}`));
+  });
+}
+
+async function handleWikiImpact(wikiManager: WikiManager, options: any, spinner: any): Promise<void> {
+  if (!options.impactFile) {
+    spinner.fail('Please provide --impact-file option');
+    console.log(chalk.gray('\nUsage:'));
+    console.log('  tsd-gen wiki impact --impact-file "src/example.ts" --impact-type "modified"');
+    return;
+  }
+
+  spinner.text = 'Analyzing change impact...';
+
+  const impact = await wikiManager.analyzeChangeImpact(
+    options.impactFile,
+    options.impactType
+  );
+
+  spinner.succeed('Impact analysis complete');
+
+  console.log(chalk.blue('\n## Change Impact Analysis'));
+  console.log(chalk.gray(`File: ${impact.filePath}`));
+  console.log(chalk.gray(`Change Type: ${impact.changeType}`));
+  console.log(chalk.gray(`Time: ${impact.timestamp.toLocaleString()}`));
+
+  console.log(chalk.blue('\n## Direct Impacts'));
+  if (impact.directImpacts.length === 0) {
+    console.log(chalk.gray('  No direct impacts'));
+  } else {
+    impact.directImpacts.forEach((item: any) => {
+      const levelColor = item.impactLevel === 'high' ? chalk.red : 
+                        item.impactLevel === 'medium' ? chalk.yellow : chalk.green;
+      console.log(`  - ${item.name} ${levelColor(`[${item.impactLevel}]`)}`);
+      console.log(chalk.gray(`    Path: ${item.path}`));
+      console.log(chalk.gray(`    Description: ${item.description}`));
+    });
+  }
+
+  console.log(chalk.blue('\n## Indirect Impacts'));
+  if (impact.indirectImpacts.length === 0) {
+    console.log(chalk.gray('  No indirect impacts'));
+  } else {
+    impact.indirectImpacts.forEach((item: any) => {
+      const levelColor = item.impactLevel === 'high' ? chalk.red : 
+                        item.impactLevel === 'medium' ? chalk.yellow : chalk.green;
+      console.log(`  - ${item.name} ${levelColor(`[${item.impactLevel}]`)}`);
+      console.log(chalk.gray(`    Path: ${item.path}`));
+    });
+  }
+
+  console.log(chalk.blue('\n## Risk Assessment'));
+  const riskColor = impact.riskAssessment.overallRisk === 'critical' ? chalk.red :
+                   impact.riskAssessment.overallRisk === 'high' ? chalk.yellow :
+                   impact.riskAssessment.overallRisk === 'medium' ? chalk.blue : chalk.green;
+  console.log(`  Overall Risk: ${riskColor(impact.riskAssessment.overallRisk)}`);
+  console.log(`  Risk Score: ${impact.riskAssessment.riskScore}`);
+  console.log(chalk.gray(`  Recommendation: ${impact.riskAssessment.recommendation}`));
+
+  if (impact.suggestedActions.length > 0) {
+    console.log(chalk.blue('\n## Suggested Actions'));
+    impact.suggestedActions.slice(0, 5).forEach((action: any) => {
+      const priorityColor = action.priority === 'urgent' ? chalk.red :
+                           action.priority === 'high' ? chalk.yellow :
+                           action.priority === 'medium' ? chalk.blue : chalk.gray;
+      console.log(`  - ${action.description} ${priorityColor(`[${action.priority}]`)}`);
+      console.log(chalk.gray(`    Type: ${action.type}`));
+      console.log(chalk.gray(`    Target: ${action.target}`));
+    });
+    if (impact.suggestedActions.length > 5) {
+      console.log(chalk.gray(`  ... and ${impact.suggestedActions.length - 5} more actions`));
+    }
+  }
 }
 
 program.parse();

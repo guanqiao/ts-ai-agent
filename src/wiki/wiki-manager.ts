@@ -42,7 +42,6 @@ import { WikiAutoSync } from './wiki-auto-sync';
 import { WikiSyncMonitor } from './wiki-sync-monitor';
 import {
   WikiSharingService,
-  WikiSyncResolver,
   WikiSharingConfig,
   ShareResult,
   SyncResult,
@@ -76,8 +75,6 @@ import {
 import {
   KnowledgeGraph,
   KnowledgeNode,
-  Recommendation,
-  LearningPath,
   KnowledgeGraphService,
 } from './knowledge';
 import { KnowledgeCluster } from './knowledge/types';
@@ -126,7 +123,6 @@ export class WikiManager extends EventEmitter implements IWikiManager {
   private autoSync: WikiAutoSync | null = null;
   private syncMonitor: WikiSyncMonitor | null = null;
   private sharingService: WikiSharingService | null = null;
-  private syncResolver: WikiSyncResolver | null = null;
   private graphGenerator: WikiGraphGenerator | null = null;
   private editorService: WikiEditorService | null = null;
   private wikiPreview: WikiPreview | null = null;
@@ -153,6 +149,77 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     }
   }
 
+  getProjectPath(): string {
+    return this.projectPath;
+  }
+
+  async injectDependencies(deps: {
+    storage: WikiStorage;
+    history: WikiHistory;
+    audit: WikiAudit;
+    autoSync: WikiAutoSync;
+    syncMonitor: WikiSyncMonitor;
+    sharingService: WikiSharingService;
+    graphGenerator: WikiGraphGenerator;
+    editorService: WikiEditorService;
+    diagramGenerator: ArchitectureDiagramGenerator;
+    diagramExporter: DiagramExporter;
+    collaborationService: WikiCollaborationService;
+    permissionService: WikiPermissionService;
+    lockService: WikiLockService;
+    adrService: ADRService;
+    adrExtractor: ADRExtractor;
+    adrTemplates: ADRTemplates;
+    knowledgeGraphService: KnowledgeGraphService;
+    changeImpactAnalyzer: import('./impact').ChangeImpactAnalyzer;
+    riskAssessmentService: import('./impact').RiskAssessmentService;
+    suggestionGenerator: import('./impact').SuggestionGenerator;
+    llmService?: LLMService;
+  }): Promise<void> {
+    this.storage = deps.storage;
+    this.wikiHistory = deps.history;
+    this.wikiAudit = deps.audit;
+    this.autoSync = deps.autoSync;
+    this.syncMonitor = deps.syncMonitor;
+    this.sharingService = deps.sharingService;
+    this.graphGenerator = deps.graphGenerator;
+    this.editorService = deps.editorService;
+    this.diagramGenerator = deps.diagramGenerator;
+    this.diagramExporter = deps.diagramExporter;
+    this.collaborationService = deps.collaborationService;
+    this.permissionService = deps.permissionService;
+    this.lockService = deps.lockService;
+    this.adrService = deps.adrService;
+    this.adrExtractor = deps.adrExtractor;
+    this.adrTemplates = deps.adrTemplates;
+    this.knowledgeGraphService = deps.knowledgeGraphService;
+    this.changeImpactAnalyzer = deps.changeImpactAnalyzer;
+    this.riskAssessmentService = deps.riskAssessmentService;
+    this.suggestionGenerator = deps.suggestionGenerator;
+    if (deps.llmService) {
+      this.llmService = deps.llmService;
+    }
+
+    this.knowledgeBase = new WikiKnowledgeBase(this.llmService || undefined);
+    this.architectureAnalyzer = new ArchitectureAnalyzer();
+    this.wikiPreview = new WikiPreview();
+    this.wikiTemplates = new WikiTemplates(deps.storage['projectPath'] || '');
+    this.incrementalUpdater = new IncrementalUpdater(
+      path.join(deps.storage['projectPath'] || '', '.wiki', 'snapshots')
+    );
+
+    await this.collaborationService.initialize();
+    await this.permissionService.initialize();
+    await this.lockService.initialize();
+    await this.adrService.initialize();
+    await this.adrTemplates.initialize();
+
+    if (this.llmService) {
+      await this.llmService.initialize();
+      this.knowledgeBase!.setLLMService(this.llmService);
+    }
+  }
+
   async initialize(projectPath: string, options: WikiOptions, user?: string): Promise<void> {
     this.projectPath = projectPath;
     this.options = options;
@@ -167,7 +234,6 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     this.autoSync = new WikiAutoSync(projectPath);
     this.syncMonitor = new WikiSyncMonitor(projectPath);
     this.sharingService = new WikiSharingService(projectPath);
-    this.syncResolver = new WikiSyncResolver();
     this.graphGenerator = new WikiGraphGenerator();
     this.editorService = new WikiEditorService(projectPath);
     this.wikiPreview = new WikiPreview();
@@ -920,27 +986,29 @@ export class WikiManager extends EventEmitter implements IWikiManager {
   }
 
   async traceImpactChain(
-    filePath: string,
-    maxDepth?: number
+    filePath: string
   ): Promise<import('./impact/types').ImpactChain[]> {
-    return this.changeImpactAnalyzer!.traceImpactChain(filePath, maxDepth);
+    const directImpacts = await this.changeImpactAnalyzer!.analyzeDirectImpact(filePath, 'modified');
+    const indirectImpacts = await this.changeImpactAnalyzer!.analyzeIndirectImpact(directImpacts);
+    return this.changeImpactAnalyzer!.traceImpactChain(filePath, directImpacts, indirectImpacts);
   }
 
   async assessRisk(impacts: ImpactItem[]): Promise<RiskAssessment> {
-    return this.riskAssessmentService!.assessOverallRisk(impacts);
+    return this.riskAssessmentService!.assessRisk(impacts, [], 'modified');
   }
 
   async calculateRiskScore(impacts: ImpactItem[]): Promise<number> {
-    return this.riskAssessmentService!.calculateRiskScore(impacts);
+    const factors = this.riskAssessmentService!.identifyRiskFactors(impacts, [], 'modified');
+    return this.riskAssessmentService!.calculateRiskScore(factors);
   }
 
   async identifyRiskFactors(impacts: ImpactItem[]): Promise<import('./impact/types').RiskFactor[]> {
-    return this.riskAssessmentService!.identifyRiskFactors(impacts);
+    return this.riskAssessmentService!.identifyRiskFactors(impacts, [], 'modified');
   }
 
   async generateMitigationStrategies(
     riskFactors: import('./impact/types').RiskFactor[]
-  ): Promise<import('./impact/types').MitigationStrategy[]> {
+  ): Promise<string[]> {
     return this.riskAssessmentService!.generateMitigation(riskFactors);
   }
 
@@ -949,7 +1017,16 @@ export class WikiManager extends EventEmitter implements IWikiManager {
   }
 
   async suggestTestRuns(impacts: ImpactItem[]): Promise<SuggestedAction[]> {
-    return this.suggestionGenerator!.suggestTestRuns(impacts);
+    const mockRiskAssessment: RiskAssessment = {
+      id: `risk-${Date.now()}`,
+      overallRisk: 'medium',
+      riskScore: 0,
+      factors: [],
+      affectedAreas: impacts.map(i => i.path),
+      timeframe: 'immediate',
+      recommendation: 'Test recommendation',
+    };
+    return this.suggestionGenerator!.suggestTestRuns(impacts, mockRiskAssessment);
   }
 
   async suggestNotifications(
@@ -1735,104 +1812,5 @@ ${f.returnType ? `**Returns:** \`${f.returnType}\`` : ''}
     byTag: Record<string, number>;
   }> {
     return this.adrService!.getStats();
-  }
-
-  private createADRPage(adr: ArchitectureDecisionRecord): WikiPage {
-    const content = this.generateADRContent(adr);
-    return this.createPage(
-      `adr-${adr.id}`,
-      `ADR: ${adr.title}`,
-      content,
-      'decision',
-      adr.codeReferences.map((ref) => ref.filePath)
-    );
-  }
-
-  private generateADRContent(adr: ArchitectureDecisionRecord): string {
-    let content = `# ${adr.title}
-
-## Status
-
-**${adr.status.toUpperCase()}**
-
-## Date
-
-${adr.date.toISOString().split('T')[0]}
-
-## Decision Makers
-
-${adr.decisionMakers.join(', ')}
-
-## Context
-
-${adr.context}
-
-## Decision
-
-${adr.decision}
-
-## Consequences
-
-`;
-
-    if (adr.consequences.positive.length > 0) {
-      content += `### Positive
-
-${adr.consequences.positive.map((p) => `- ${p}`).join('\n')}
-
-`;
-    }
-
-    if (adr.consequences.negative.length > 0) {
-      content += `### Negative
-
-${adr.consequences.negative.map((n) => `- ${n}`).join('\n')}
-
-`;
-    }
-
-    if (adr.consequences.neutral.length > 0) {
-      content += `### Neutral
-
-${adr.consequences.neutral.map((n) => `- ${n}`).join('\n')}
-
-`;
-    }
-
-    if (adr.alternatives.length > 0) {
-      content += `## Alternatives Considered
-
-${adr.alternatives
-  .map(
-    (alt) => `### ${alt.name}
-
-${alt.description}
-
-${alt.pros.length > 0 ? `**Pros:** ${alt.pros.join(', ')}` : ''}
-${alt.cons.length > 0 ? `**Cons:** ${alt.cons.join(', ')}` : ''}
-${alt.rejectedReason ? `**Rejected because:** ${alt.rejectedReason}` : ''}
-`
-  )
-  .join('\n')}
-
-`;
-    }
-
-    if (adr.tags.length > 0) {
-      content += `## Tags
-
-${adr.tags.map((t) => `\`${t}\``).join(' ')}
-
-`;
-    }
-
-    if (adr.codeReferences.length > 0) {
-      content += `## Code References
-
-${adr.codeReferences.map((ref) => `- [${ref.filePath}${ref.lineStart ? `:${ref.lineStart}` : ''}](${ref.filePath})`).join('\n')}
-`;
-    }
-
-    return content;
   }
 }

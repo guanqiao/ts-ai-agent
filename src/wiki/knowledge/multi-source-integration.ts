@@ -10,12 +10,12 @@ export interface KnowledgeItem {
   sources?: string[];
 }
 
-export interface KnowledgeGraph {
-  nodes: KnowledgeNode[];
-  edges: KnowledgeEdge[];
+export interface MultiSourceKnowledgeGraph {
+  nodes: MultiSourceKnowledgeNode[];
+  edges: MultiSourceKnowledgeEdge[];
 }
 
-export interface KnowledgeNode {
+export interface MultiSourceKnowledgeNode {
   id: string;
   type: string;
   content: string;
@@ -23,7 +23,7 @@ export interface KnowledgeNode {
   confidence: number;
 }
 
-export interface KnowledgeEdge {
+export interface MultiSourceKnowledgeEdge {
   source: string;
   target: string;
   relationship: string;
@@ -174,9 +174,9 @@ export class MultiSourceIntegration {
     return Array.from(merged.values());
   }
 
-  async buildKnowledgeGraph(): Promise<KnowledgeGraph> {
-    const nodes: KnowledgeNode[] = [];
-    const edges: KnowledgeEdge[] = [];
+  async buildKnowledgeGraph(): Promise<MultiSourceKnowledgeGraph> {
+    const nodes: MultiSourceKnowledgeNode[] = [];
+    const edges: MultiSourceKnowledgeEdge[] = [];
 
     const gitKnowledge = await this.extractFromGitHistory();
 

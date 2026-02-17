@@ -26,6 +26,7 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
+      "@core/*": ["src/core/*"],
       "@agents/*": ["src/agents/*"],
       "@parsers/*": ["src/parsers/*"],
       "@generators/*": ["src/generators/*"],
