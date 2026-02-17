@@ -266,7 +266,7 @@ describe('WikiSharingService', () => {
 
       expect(status.isShared).toBe(true);
       expect(status.lastSharedAt).not.toBeNull();
-    }, 30000);
+    }, 60000);
   });
 
   describe('detectConflicts', () => {

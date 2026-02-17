@@ -1,5 +1,6 @@
 import {
   TSDGeneratorError,
+  AppError,
   ErrorHandler,
   ErrorCode,
   DEFAULT_RETRY_CONFIG,
@@ -11,17 +12,16 @@ import {
 describe('TSDGeneratorError', () => {
   describe('constructor', () => {
     it('should create error with all properties', () => {
-      const error = new TSDGeneratorError({
-        code: ErrorCode.LLM_ERROR,
-        message: 'Test error',
-        details: { key: 'value' },
-        timestamp: new Date(),
-        recoverable: true,
-      });
+      const error = new TSDGeneratorError(
+        'Test error',
+        ErrorCode.LLM_ERROR,
+        { key: 'value' },
+        true
+      );
 
       expect(error.code).toBe(ErrorCode.LLM_ERROR);
       expect(error.message).toBe('Test error');
-      expect(error.details).toEqual({ key: 'value' });
+      expect(error.context).toEqual({ key: 'value' });
       expect(error.recoverable).toBe(true);
     });
   });
@@ -33,18 +33,16 @@ describe('TSDGeneratorError', () => {
 
       expect(tsdError.code).toBe(ErrorCode.PARSE_ERROR);
       expect(tsdError.message).toBe('Original error');
-      expect(tsdError.cause).toBe(originalError);
+      expect(tsdError.context?.originalError).toBe(originalError);
     });
 
     it('should return existing TSDGeneratorError unchanged', () => {
-      const original = new TSDGeneratorError({
-        code: ErrorCode.LLM_ERROR,
-        message: 'Test',
-        timestamp: new Date(),
-        recoverable: false,
-      });
+      const original = new TSDGeneratorError(
+        'Test',
+        ErrorCode.LLM_ERROR
+      );
 
-      const result = TSDGeneratorError.fromError(original, ErrorCode.UNKNOWN);
+      const result = TSDGeneratorError.fromError(original, ErrorCode.UNKNOWN_ERROR);
 
       expect(result).toBe(original);
     });
@@ -52,12 +50,12 @@ describe('TSDGeneratorError', () => {
 
   describe('toJSON', () => {
     it('should serialize error to JSON', () => {
-      const error = new TSDGeneratorError({
-        code: ErrorCode.CONFIG_INVALID,
-        message: 'Config error',
-        timestamp: new Date(),
-        recoverable: true,
-      });
+      const error = new TSDGeneratorError(
+        'Config error',
+        ErrorCode.CONFIG_INVALID,
+        {},
+        true
+      );
 
       const json = error.toJSON() as Record<string, unknown>;
 
@@ -80,17 +78,15 @@ describe('ErrorHandler', () => {
       const error = new Error('Test error');
       const result = handler.handleError(error);
 
-      expect(result).toBeInstanceOf(TSDGeneratorError);
+      expect(result).toBeInstanceOf(AppError);
       expect(result.message).toBe('Test error');
     });
 
     it('should handle TSDGeneratorError', () => {
-      const tsdError = new TSDGeneratorError({
-        code: ErrorCode.LLM_ERROR,
-        message: 'LLM error',
-        timestamp: new Date(),
-        recoverable: false,
-      });
+      const tsdError = new TSDGeneratorError(
+        'LLM error',
+        ErrorCode.LLM_ERROR
+      );
 
       const result = handler.handleError(tsdError);
 
@@ -108,36 +104,36 @@ describe('ErrorHandler', () => {
 
   describe('canRetry', () => {
     it('should return false for non-recoverable errors', () => {
-      const error = new TSDGeneratorError({
-        code: ErrorCode.CONFIG_INVALID,
-        message: 'Config error',
-        timestamp: new Date(),
-        recoverable: false,
-      });
+      const error = new TSDGeneratorError(
+        'Config error',
+        ErrorCode.CONFIG_INVALID,
+        {},
+        false
+      );
 
       expect(handler.canRetry(error)).toBe(false);
     });
 
     it('should return true for recoverable errors', () => {
-      const error = new TSDGeneratorError({
-        code: ErrorCode.LLM_RATE_LIMIT,
-        message: 'Rate limit',
-        timestamp: new Date(),
-        recoverable: true,
-      });
+      const error = new TSDGeneratorError(
+        'Rate limit',
+        ErrorCode.LLM_RATE_LIMIT,
+        {},
+        true
+      );
 
       expect(handler.canRetry(error)).toBe(true);
     });
 
     it('should respect retry count', () => {
-      const error = new TSDGeneratorError({
-        code: ErrorCode.LLM_TIMEOUT,
-        message: 'Timeout',
-        timestamp: new Date(),
-        recoverable: true,
-        retryCount: 3,
-        maxRetries: 3,
-      });
+      const error = new TSDGeneratorError(
+        'Timeout',
+        ErrorCode.LLM_TIMEOUT,
+        {},
+        true,
+        3,
+        3
+      );
 
       expect(handler.canRetry(error)).toBe(false);
     });
@@ -171,12 +167,12 @@ describe('ErrorHandler', () => {
 
     it('should retry on recoverable errors', async () => {
       const operation = jest.fn()
-        .mockRejectedValueOnce(new TSDGeneratorError({
-          code: ErrorCode.LLM_RATE_LIMIT,
-          message: 'Rate limit',
-          timestamp: new Date(),
-          recoverable: true,
-        }))
+        .mockRejectedValueOnce(new TSDGeneratorError(
+          'Rate limit',
+          ErrorCode.LLM_RATE_LIMIT,
+          {},
+          true
+        ))
         .mockResolvedValue('success');
 
       const result = await handler.withRetry(operation, { operationName: 'test' });
@@ -186,12 +182,12 @@ describe('ErrorHandler', () => {
     });
 
     it('should throw after max retries', async () => {
-      const error = new TSDGeneratorError({
-        code: ErrorCode.LLM_TIMEOUT,
-        message: 'Timeout',
-        timestamp: new Date(),
-        recoverable: true,
-      });
+      const error = new TSDGeneratorError(
+        'Timeout',
+        ErrorCode.LLM_TIMEOUT,
+        {},
+        true
+      );
 
       const operation = jest.fn().mockRejectedValue(error);
 
@@ -227,19 +223,19 @@ describe('createError', () => {
       recoverable: true,
     });
 
-    expect(error.details).toEqual({ field: 'name' });
+    expect(error.context).toEqual({ field: 'name' });
     expect(error.recoverable).toBe(true);
   });
 });
 
 describe('isRecoverable', () => {
   it('should return true for recoverable TSDGeneratorError', () => {
-    const error = new TSDGeneratorError({
-      code: ErrorCode.LLM_ERROR,
-      message: 'Test',
-      timestamp: new Date(),
-      recoverable: true,
-    });
+    const error = new TSDGeneratorError(
+      'Test',
+      ErrorCode.LLM_ERROR,
+      {},
+      true
+    );
 
     expect(isRecoverable(error)).toBe(true);
   });
@@ -253,26 +249,24 @@ describe('isRecoverable', () => {
 
 describe('getErrorCode', () => {
   it('should return code for TSDGeneratorError', () => {
-    const error = new TSDGeneratorError({
-      code: ErrorCode.CONFIG_INVALID,
-      message: 'Test',
-      timestamp: new Date(),
-      recoverable: false,
-    });
+    const error = new TSDGeneratorError(
+      'Test',
+      ErrorCode.CONFIG_INVALID
+    );
 
     expect(getErrorCode(error)).toBe(ErrorCode.CONFIG_INVALID);
   });
 
-  it('should return UNKNOWN for standard Error', () => {
+  it('should return UNKNOWN_ERROR for standard Error', () => {
     const error = new Error('Test');
 
-    expect(getErrorCode(error)).toBe(ErrorCode.UNKNOWN);
+    expect(getErrorCode(error)).toBe(ErrorCode.UNKNOWN_ERROR);
   });
 });
 
 describe('ErrorCode', () => {
   it('should have all expected error codes', () => {
-    expect(ErrorCode.UNKNOWN).toBe('UNKNOWN');
+    expect(ErrorCode.UNKNOWN_ERROR).toBe('UNKNOWN_ERROR');
     expect(ErrorCode.CONFIG_INVALID).toBe('CONFIG_INVALID');
     expect(ErrorCode.LLM_ERROR).toBe('LLM_ERROR');
     expect(ErrorCode.FILE_NOT_FOUND).toBe('FILE_NOT_FOUND');

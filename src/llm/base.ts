@@ -6,22 +6,71 @@ import {
 } from '@langchain/core/prompts';
 import { StringOutputParser } from '@langchain/core/output_parsers';
 import { RunnableSequence } from '@langchain/core/runnables';
-import { LLMConfig, AgentMessage, AgentResult, AgentContext } from '../types';
+import { LLMConfig, AgentMessage, AgentResult, AgentContext, LLMProvider } from '../types';
+import { ILLMProvider, OpenAIProvider, AnthropicProvider } from './providers';
+import { LLMCache, CacheConfig, DEFAULT_CACHE_CONFIG } from './cache';
 import * as fs from 'fs';
 import * as https from 'https';
 
-export class LLMService {
-  private config: LLMConfig;
-  private model: ChatOpenAI | null = null;
+export interface LLMServiceOptions {
+  cache?: LLMCache<string>;
+  cacheConfig?: Partial<CacheConfig>;
+}
 
-  constructor(config: LLMConfig) {
-    this.config = config;
+export class LLMService {
+  private config: LLMConfig | null = null;
+  private provider: ILLMProvider;
+  private model: ChatOpenAI | null = null;
+  private cache: LLMCache<string> | null = null;
+
+  constructor(configOrProvider: LLMConfig | ILLMProvider, options: LLMServiceOptions = {}) {
+    if (this.isProvider(configOrProvider)) {
+      this.provider = configOrProvider;
+      this.config = null;
+    } else {
+      this.config = configOrProvider;
+      this.provider = this.createProvider(configOrProvider);
+    }
+
+    if (options.cache) {
+      this.cache = options.cache;
+    } else if (options.cacheConfig) {
+      this.cache = new LLMCache<string>(options.cacheConfig);
+    }
+  }
+
+  private isProvider(obj: unknown): obj is ILLMProvider {
+    return (
+      typeof obj === 'object' &&
+      obj !== null &&
+      'complete' in obj &&
+      'stream' in obj &&
+      'embed' in obj &&
+      'getModel' in obj
+    );
+  }
+
+  private createProvider(config: LLMConfig): ILLMProvider {
+    switch (config.provider) {
+      case LLMProvider.OpenAI:
+        return new OpenAIProvider(config);
+      case LLMProvider.Anthropic:
+        return new AnthropicProvider(config);
+      default:
+        return new OpenAIProvider(config);
+    }
+  }
+
+  getProvider(): ILLMProvider {
+    return this.provider;
   }
 
   async initialize(): Promise<void> {
+    if (this.model) return;
+
     let httpAgent: https.Agent | undefined;
 
-    if (this.config.caCert) {
+    if (this.config?.caCert) {
       const caCertContent = fs.readFileSync(this.config.caCert, 'utf-8');
       httpAgent = new https.Agent({
         ca: caCertContent,
@@ -29,7 +78,7 @@ export class LLMService {
     }
 
     const configuration: Record<string, unknown> = {};
-    if (this.config.baseUrl) {
+    if (this.config?.baseUrl) {
       configuration.baseURL = this.config.baseUrl;
     }
     if (httpAgent) {
@@ -37,60 +86,38 @@ export class LLMService {
     }
 
     this.model = new ChatOpenAI({
-      modelName: this.config.model || 'gpt-4',
-      temperature: this.config.temperature ?? 0.7,
-      maxTokens: this.config.maxTokens ?? 4096,
-      openAIApiKey: this.config.apiKey || process.env.OPENAI_API_KEY,
+      modelName: this.config?.model || 'gpt-4',
+      temperature: this.config?.temperature ?? 0.7,
+      maxTokens: this.config?.maxTokens ?? 4096,
+      openAIApiKey: this.config?.apiKey || process.env.OPENAI_API_KEY,
       configuration: Object.keys(configuration).length > 0 ? configuration : undefined,
     });
   }
 
   async complete(messages: AgentMessage[]): Promise<string> {
-    if (!this.model) {
-      await this.initialize();
+    const cacheKey = this.cache?.generateKey(
+      JSON.stringify(messages),
+      this.provider.getModel()
+    );
+
+    if (cacheKey && this.cache?.has(cacheKey)) {
+      const cached = this.cache.get(cacheKey);
+      if (cached !== undefined) {
+        return cached;
+      }
     }
 
-    const formattedMessages = messages.map((msg) => {
-      switch (msg.role) {
-        case 'system':
-          return SystemMessagePromptTemplate.fromTemplate(msg.content);
-        case 'user':
-          return HumanMessagePromptTemplate.fromTemplate(msg.content);
-        default:
-          return HumanMessagePromptTemplate.fromTemplate(msg.content);
-      }
-    });
+    const result = await this.provider.complete(messages);
 
-    const prompt = ChatPromptTemplate.fromMessages(formattedMessages);
-    const chain = RunnableSequence.from([prompt, this.model!, new StringOutputParser()]);
+    if (cacheKey) {
+      this.cache?.set(cacheKey, result);
+    }
 
-    return await chain.invoke({});
+    return result;
   }
 
   async *stream(messages: AgentMessage[]): AsyncIterable<string> {
-    if (!this.model) {
-      await this.initialize();
-    }
-
-    const formattedMessages = messages.map((msg) => {
-      switch (msg.role) {
-        case 'system':
-          return SystemMessagePromptTemplate.fromTemplate(msg.content);
-        case 'user':
-          return HumanMessagePromptTemplate.fromTemplate(msg.content);
-        default:
-          return HumanMessagePromptTemplate.fromTemplate(msg.content);
-      }
-    });
-
-    const prompt = ChatPromptTemplate.fromMessages(formattedMessages);
-    const chain = RunnableSequence.from([prompt, this.model!, new StringOutputParser()]);
-
-    const stream = await chain.stream({});
-
-    for await (const chunk of stream) {
-      yield chunk;
-    }
+    yield* this.provider.stream(messages);
   }
 
   getModel(): ChatOpenAI {
@@ -101,38 +128,21 @@ export class LLMService {
   }
 
   async createEmbedding(text: string): Promise<number[]> {
-    if (!this.model) {
-      await this.initialize();
-    }
-
-    const response = await this.model!.invoke([
-      { role: 'system', content: 'Generate a semantic embedding for the following text.' },
-      { role: 'user', content: text },
-    ]);
-
-    const content = response.content.toString();
-    const embedding: number[] = [];
-    const hash = this.simpleHash(content);
-    for (let i = 0; i < 1536; i++) {
-      embedding.push(Math.sin(hash + i * 0.1) * 0.5);
-    }
-    return this.normalizeVector(embedding);
+    return this.provider.embed(text);
   }
 
-  private simpleHash(str: string): number {
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      const char = str.charCodeAt(i);
-      hash = (hash << 5) - hash + char;
-      hash = hash & hash;
-    }
-    return hash;
+  getCacheStats(): { size: number; totalHits: number; hitRate: number } | null {
+    if (!this.cache) return null;
+    const stats = this.cache.getStats();
+    return {
+      size: stats.size,
+      totalHits: stats.totalHits,
+      hitRate: stats.hitRate,
+    };
   }
 
-  private normalizeVector(vec: number[]): number[] {
-    const magnitude = Math.sqrt(vec.reduce((sum, val) => sum + val * val, 0));
-    if (magnitude === 0) return vec;
-    return vec.map((val) => val / magnitude);
+  clearCache(): void {
+    this.cache?.clear();
   }
 }
 

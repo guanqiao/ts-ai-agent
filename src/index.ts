@@ -1,9 +1,33 @@
 export { TypeScriptParser, JavaParser, BaseParser } from './parsers';
 export { CodeAnalysisAgent, DocGeneratorAgent, ReviewAgent, AgentOrchestrator } from './agents';
-export { LLMService, BaseAgent, SYSTEM_PROMPTS, PROMPT_TEMPLATES } from './llm';
+export { LLMService, BaseAgent, SYSTEM_PROMPTS, PROMPT_TEMPLATES, LLMCache, OpenAIProvider, AnthropicProvider, LLMProviderFactory } from './llm';
 export { DocumentGenerator, TemplateEngine, BUILTIN_TEMPLATES } from './generators';
 export * from './types';
 export * from './interfaces';
+
+export { DIContainer, ServiceLocator, ServiceToken, ServiceLifetime } from './core/di';
+export { ToolPlanner, ToolPlan, PlanStep, ToolSelection } from './agents/tools/planner';
+export { CommandRegistry, Command, CommandContext, CommandOption } from './cli/commands';
+export {
+  AppError,
+  ErrorCode,
+  Result,
+  success,
+  failure,
+  isSuccess,
+  isFailure,
+  ErrorHandler,
+  TSDGeneratorError,
+} from './core/errors';
+export {
+  ILLMProvider,
+  IAgent,
+  IWikiManager,
+  IWikiStorage,
+  IParser,
+  IGenerator,
+} from './core/interfaces';
+export { ModuleDependencyChecker, DependencyRule, ModuleInfo } from './core/modules';
 
 import { TypeScriptParser, JavaParser } from './parsers';
 import { AgentOrchestrator } from './agents';

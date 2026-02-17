@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 import { LLMService } from '../llm';
 import { IVectorStore, SearchDocument, SearchResult, EmbeddingConfig } from '../search/types';
 
@@ -10,12 +11,13 @@ export class WikiVectorStore implements IVectorStore {
   private config: EmbeddingConfig;
   private initialized: boolean = false;
   private storagePath: string;
+  private embeddingCache: Map<string, number[]> = new Map();
 
   constructor(projectPath: string, llmService?: LLMService) {
     this.llmService = llmService || null;
     this.storagePath = path.join(projectPath, '.wiki', 'vectors');
     this.config = {
-      model: 'text-embedding-ada-002',
+      model: 'text-embedding-3-small',
       dimensions: 1536,
       batchSize: 100,
     };
@@ -120,44 +122,50 @@ export class WikiVectorStore implements IVectorStore {
   }
 
   private async generateEmbedding(text: string): Promise<number[]> {
-    if (!this.llmService) {
-      return this.generateRandomEmbedding();
+    const cacheKey = crypto.createHash('md5').update(text).digest('hex');
+    
+    if (this.embeddingCache.has(cacheKey)) {
+      return this.embeddingCache.get(cacheKey)!;
     }
 
-    try {
-      const response = await this.llmService.createEmbedding(text);
-      return response;
-    } catch {
-      return this.generateRandomEmbedding();
+    if (this.llmService) {
+      try {
+        const embedding = await this.llmService.createEmbedding(text);
+        this.embeddingCache.set(cacheKey, embedding);
+        return embedding;
+      } catch (error) {
+        console.warn('Failed to generate embedding via LLM, using deterministic fallback:', error);
+      }
     }
+
+    return this.generateDeterministicEmbedding(text);
+  }
+
+  private generateDeterministicEmbedding(text: string): number[] {
+    const hash = crypto.createHash('sha256').update(text).digest('hex');
+    const embedding: number[] = [];
+    
+    for (let i = 0; i < this.config.dimensions; i++) {
+      const hexValue = hash.substring((i * 2) % hash.length, ((i * 2) % hash.length) + 8);
+      const numValue = parseInt(hexValue, 16);
+      embedding.push(Math.sin(numValue) * 0.5);
+    }
+    
+    return this.normalizeVector(embedding);
   }
 
   private async generateEmbeddings(texts: string[]): Promise<number[][]> {
-    if (!this.llmService) {
-      return texts.map(() => this.generateRandomEmbedding());
+    const embeddings: number[][] = [];
+    
+    for (let i = 0; i < texts.length; i += this.config.batchSize) {
+      const batch = texts.slice(i, i + this.config.batchSize);
+      const batchEmbeddings = await Promise.all(
+        batch.map((text) => this.generateEmbedding(text))
+      );
+      embeddings.push(...batchEmbeddings);
     }
-
-    try {
-      const embeddings: number[][] = [];
-      for (let i = 0; i < texts.length; i += this.config.batchSize) {
-        const batch = texts.slice(i, i + this.config.batchSize);
-        const batchEmbeddings = await Promise.all(
-          batch.map((text) => this.generateEmbedding(text))
-        );
-        embeddings.push(...batchEmbeddings);
-      }
-      return embeddings;
-    } catch {
-      return texts.map(() => this.generateRandomEmbedding());
-    }
-  }
-
-  private generateRandomEmbedding(): number[] {
-    const embedding: number[] = [];
-    for (let i = 0; i < this.config.dimensions; i++) {
-      embedding.push(Math.random() * 2 - 1);
-    }
-    return this.normalizeVector(embedding);
+    
+    return embeddings;
   }
 
   private normalizeVector(vec: number[]): number[] {
