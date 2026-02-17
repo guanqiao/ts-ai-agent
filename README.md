@@ -69,6 +69,7 @@ tsd-gen wiki watch ./src
 | `--model <model>` | LLM 模型名称 | `gpt-4` |
 | `--api-key <key>` | API 密钥 | 环境变量 `OPENAI_API_KEY` |
 | `--base-url <url>` | API 基础 URL | - |
+| `--ca-cert <path>` | CA 证书文件路径（可选，用于自定义证书） | - |
 
 ## 配置
 
@@ -93,7 +94,9 @@ tsd-gen wiki watch ./src
     "enabled": true,
     "model": "gpt-4",
     "temperature": 0.7,
-    "maxTokens": 4096
+    "maxTokens": 4096,
+    "baseUrl": "https://api.example.com/v1",
+    "caCert": "/path/to/ca-cert.pem"
   }
 }
 ```
@@ -107,6 +110,8 @@ const llmConfig = {
   provider: 'openai',
   model: 'gpt-4',
   apiKey: process.env.OPENAI_API_KEY,
+  baseUrl: 'https://api.example.com/v1',
+  caCert: '/path/to/ca-cert.pem',
 };
 
 const wikiManager = new WikiManager(llmConfig);
