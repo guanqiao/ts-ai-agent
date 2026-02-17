@@ -14,7 +14,7 @@ describe('WikiSharingConfig', () => {
     it('should have correct default values', () => {
       expect(DEFAULT_SHARING_CONFIG.enabled).toBe(false);
       expect(DEFAULT_SHARING_CONFIG.shareToGit).toBe(true);
-      expect(DEFAULT_SHARING_CONFIG.sharePath).toBe('docs/wiki');
+      expect(DEFAULT_SHARING_CONFIG.sharePath).toBe('.tsdgen/wiki');
       expect(DEFAULT_SHARING_CONFIG.accessControl).toBe('team');
       expect(DEFAULT_SHARING_CONFIG.syncWithRemote).toBe(true);
       expect(DEFAULT_SHARING_CONFIG.autoCommit).toBe(true);

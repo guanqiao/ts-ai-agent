@@ -141,7 +141,7 @@ export interface IWikiSharingService {
 export const DEFAULT_SHARING_CONFIG: WikiSharingConfig = {
   enabled: false,
   shareToGit: true,
-  sharePath: 'docs/wiki',
+  sharePath: '.tsdgen/wiki',
   accessControl: 'team',
   syncWithRemote: true,
   autoCommit: true,

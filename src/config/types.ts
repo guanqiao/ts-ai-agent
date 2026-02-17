@@ -1,4 +1,5 @@
 import { DocumentFormat, Language } from '../types';
+import { WikiLanguage } from '../wiki/types';
 
 export interface WikiConfig {
   version: string;
@@ -26,6 +27,7 @@ export interface WikiGenerationConfig {
   includePrivate: boolean;
   categories: string[];
   customTemplates: Record<string, string>;
+  wikiLanguages?: WikiLanguage[];
 }
 
 export interface SyncConfig {
@@ -133,6 +135,7 @@ export const DEFAULT_CONFIG: WikiConfig = {
     includePrivate: false,
     categories: ['overview', 'architecture', 'api', 'module', 'guide'],
     customTemplates: {},
+    wikiLanguages: [WikiLanguage.English],
   },
   sync: {
     autoSync: true,

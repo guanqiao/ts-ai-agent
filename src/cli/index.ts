@@ -16,6 +16,7 @@ import {
   WikiProgressMonitor,
   WikiProgressPersistence,
   WikiProgressEvent,
+  WikiLanguage,
 } from '../wiki';
 import { ArchitectureAnalyzer } from '../architecture';
 import { HybridSearch } from '../search';
@@ -234,7 +235,7 @@ program
   .option('--sync-status', 'Show sync status', false)
   .option('--show-config', 'Show current configuration', false)
   .option('--reset-config', 'Reset configuration to defaults', false)
-  .option('--share-path <path>', 'Path for sharing wiki', './docs/wiki')
+  .option('--share-path <path>', 'Path for sharing wiki', '.tsdgen/wiki')
   .option('--share-access <level>', 'Access level (public, team, private)', 'team')
   .option('--graph-type <type>', 'Graph type (dependency, call, inheritance)', 'dependency')
   .option('--graph-format <format>', 'Graph format (mermaid, svg, json)', 'mermaid')
@@ -249,6 +250,7 @@ program
   .option('--impact-type <type>', 'Change type (added, modified, removed)', 'modified')
   .option('--incremental', 'Use incremental update if possible', false)
   .option('--force', 'Force full regeneration', false)
+  .option('--wiki-languages <langs>', 'Wiki languages (comma-separated: en,zh)', 'en')
   .action(async (action: string, input: string, options: any) => {
     const spinner = ora('Initializing Wiki...').start();
 
@@ -277,6 +279,7 @@ program
         watchMode: options.watch,
         generateIndex: true,
         generateSearch: true,
+        wikiLanguages: options.wikiLanguages?.split(',').map((l: string) => l.trim() as WikiLanguage),
       };
 
       const wikiManager = new WikiManager(llmConfig);
