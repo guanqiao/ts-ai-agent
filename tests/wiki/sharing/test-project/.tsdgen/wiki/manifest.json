@@ -4,35 +4,27 @@
     {
       "path": "test-page.md",
       "type": "page",
-      "hash": "9de0fd1d",
+      "hash": "d6febe0c",
       "size": 135,
-      "lastModified": "2026-02-17T16:01:05.506Z"
-    },
-    {
-      "path": "second-page.md",
-      "type": "page",
-      "hash": "5031d42d",
-      "size": 127,
-      "lastModified": "2026-02-17T16:01:05.506Z"
+      "lastModified": "2026-02-17T16:01:06.611Z"
     },
     {
       "path": "index.json",
       "type": "index",
       "hash": "274c0e09",
       "size": 0,
-      "lastModified": "2026-02-17T16:01:05.507Z"
+      "lastModified": "2026-02-17T16:01:06.613Z"
     },
     {
       "path": "metadata.json",
       "type": "metadata",
       "hash": "536f766d",
       "size": 0,
-      "lastModified": "2026-02-17T16:01:05.507Z"
+      "lastModified": "2026-02-17T16:01:06.613Z"
     }
   ],
   "checksums": {
-    "test-page.md": "9de0fd1d",
-    "second-page.md": "5031d42d",
+    "test-page.md": "d6febe0c",
     "index.json": "274c0e09",
     "metadata.json": "536f766d"
   }
