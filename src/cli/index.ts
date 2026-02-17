@@ -401,7 +401,11 @@ async function handleWikiGenerate(
   const architectureAnalyzer = new ArchitectureAnalyzer();
   const architecture = await architectureAnalyzer.analyze(parseResult.files);
 
-  spinner.text = 'Generating wiki pages...';
+  spinner.succeed('Architecture analysis complete');
+  spinner.stop();
+
+  const progressBar = createProgressBar();
+  let lastPhase = '';
 
   const context: WikiContext = {
     projectPath: inputPath,
@@ -413,12 +417,25 @@ async function handleWikiGenerate(
       format: options.format as DocumentFormat,
       generateIndex: true,
       generateSearch: true,
+      onProgress: (info) => {
+        if (info.phase !== lastPhase) {
+          lastPhase = info.phase;
+          progressBar.updatePhase(info.phase);
+        }
+        progressBar.update(info.progress, info.message);
+      },
     },
   };
 
+  wikiManager.on('progress', (event: any) => {
+    if (options.verbose) {
+      console.log(chalk.gray(`  [${event.phase}] ${event.type}: ${event.message}`));
+    }
+  });
+
   const document = await wikiManager.generate(context);
 
-  spinner.succeed(`Wiki generated: ${document.pages.length} pages`);
+  progressBar.complete();
 
   console.log(chalk.blue('\nGenerated Pages:'));
   document.pages.slice(0, 10).forEach((page) => {
@@ -430,6 +447,46 @@ async function handleWikiGenerate(
   }
 
   console.log(chalk.green('\n✓ Done!'));
+}
+
+function createProgressBar() {
+  let lastProgress = 0;
+  let currentPhase = '';
+
+  const phaseLabels: Record<string, string> = {
+    initialization: '初始化',
+    analysis: '架构分析',
+    generation: '生成页面',
+    finalization: '完成处理',
+  };
+
+  const printProgress = (progress: number, message: string) => {
+    const width = 40;
+    const filled = Math.round((progress / 100) * width);
+    const empty = width - filled;
+    const bar = '█'.repeat(filled) + '░'.repeat(empty);
+    const phaseLabel = phaseLabels[currentPhase] || currentPhase;
+
+    process.stdout.write(
+      `\r${chalk.cyan(`[${phaseLabel}]`)} [${chalk.green(bar)}] ${progress.toFixed(0).padStart(3)}% ${chalk.gray(message.substring(0, 40).padEnd(40))}`
+    );
+  };
+
+  return {
+    updatePhase(phase: string) {
+      currentPhase = phase;
+    },
+    update(progress: number, message: string) {
+      if (progress !== lastProgress) {
+        printProgress(progress, message);
+        lastProgress = progress;
+      }
+    },
+    complete() {
+      printProgress(100, '完成!');
+      process.stdout.write('\n');
+    },
+  };
 }
 
 async function handleWikiWatch(wikiManager: WikiManager, spinner: any): Promise<void> {

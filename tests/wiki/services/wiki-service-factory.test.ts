@@ -47,7 +47,7 @@ describe('WikiServiceFactory', () => {
     it('should create a WikiManager with all dependencies injected', async () => {
       WikiServiceFactory.registerServices(container, '/test/project');
 
-      const manager = await WikiServiceFactory.createWikiManager(container);
+      const manager = await WikiServiceFactory.createWikiManager(container, '/test/project');
 
       expect(manager).toBeDefined();
       expect(manager.getProjectPath()).toBe('/test/project');

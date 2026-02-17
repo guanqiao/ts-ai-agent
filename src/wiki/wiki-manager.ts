@@ -32,6 +32,8 @@ import {
   OutdatedPage,
   ReminderConfig,
   ChangeImpact,
+  WikiProgressEvent,
+  GenerationPhase,
 } from './types';
 import { WikiStorage } from './wiki-storage';
 import { WikiKnowledgeBase } from './wiki-knowledge-base';
@@ -40,6 +42,7 @@ import { WikiDiff } from './wiki-diff';
 import { WikiAudit } from './wiki-audit';
 import { WikiAutoSync } from './wiki-auto-sync';
 import { WikiSyncMonitor } from './wiki-sync-monitor';
+import { WikiProgressMonitor, IWikiProgressMonitor } from './wiki-progress-monitor';
 import {
   WikiSharingService,
   WikiSharingConfig,
@@ -141,6 +144,7 @@ export class WikiManager extends EventEmitter implements IWikiManager {
   private suggestionGenerator: import('./impact').SuggestionGenerator | null = null;
   private isWatching: boolean = false;
   private currentUser?: string;
+  private progressMonitor: IWikiProgressMonitor | null = null;
 
   constructor(llmConfig?: LLMConfig) {
     super();
@@ -175,7 +179,8 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     riskAssessmentService: import('./impact').RiskAssessmentService;
     suggestionGenerator: import('./impact').SuggestionGenerator;
     llmService?: LLMService;
-  }): Promise<void> {
+  }, projectPath?: string): Promise<void> {
+    this.projectPath = projectPath || '';
     this.storage = deps.storage;
     this.wikiHistory = deps.history;
     this.wikiAudit = deps.audit;
@@ -203,9 +208,9 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     this.knowledgeBase = new WikiKnowledgeBase(this.llmService || undefined);
     this.architectureAnalyzer = new ArchitectureAnalyzer();
     this.wikiPreview = new WikiPreview();
-    this.wikiTemplates = new WikiTemplates(deps.storage['projectPath'] || '');
+    this.wikiTemplates = new WikiTemplates(this.projectPath);
     this.incrementalUpdater = new IncrementalUpdater(
-      path.join(deps.storage['projectPath'] || '', '.wiki', 'snapshots')
+      path.join(this.projectPath, '.wiki', 'snapshots')
     );
 
     await this.collaborationService.initialize();
@@ -268,55 +273,151 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     this.currentUser = user;
   }
 
+  setProgressMonitor(monitor: IWikiProgressMonitor): void {
+    this.progressMonitor = monitor;
+  }
+
   async generate(context: WikiContext): Promise<WikiDocument> {
     const { parsedFiles, architecture } = context;
 
-    const archReport = architecture || (await this.architectureAnalyzer!.analyze(parsedFiles));
-
-    const pages = await this.generatePages(parsedFiles, archReport);
-
-    const index = this.buildIndex(pages);
-
-    const metadata = this.buildMetadata(context, parsedFiles);
-
-    const document: WikiDocument = {
-      id: this.generateDocumentId(),
-      name: metadata.projectName,
-      description: `Wiki documentation for ${metadata.projectName}`,
-      pages,
-      index,
-      metadata,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    await this.storage!.save(document);
-    await this.knowledgeBase!.index(document);
-
-    // 保存初始版本到历史记录
-    for (const page of pages) {
-      await this.wikiHistory!.saveVersion(page, 'Initial version', this.currentUser);
-      await this.wikiAudit!.log('page-created', {
-        pageId: page.id,
-        pageTitle: page.title,
-        version: page.version,
-        performedBy: this.currentUser,
-      });
+    this.progressMonitor = new WikiProgressMonitor();
+    
+    if (context.options.onProgress) {
+      this.progressMonitor.onProgress(context.options.onProgress);
     }
 
-    const snapshot = this.incrementalUpdater!.createSnapshot(
-      parsedFiles,
-      metadata.commitHash || 'initial'
-    );
-    await this.incrementalUpdater!.saveSnapshot(snapshot);
-
-    this.emitEvent({
-      type: 'wiki-regenerated',
-      timestamp: new Date(),
-      details: { pageCount: pages.length },
+    this.progressMonitor.on('progress', (event: WikiProgressEvent) => {
+      this.emit('progress', event);
     });
 
-    return document;
+    const totalSymbols = parsedFiles.reduce((sum, f) => sum + f.symbols.length, 0);
+    this.progressMonitor.setTotalFiles(parsedFiles.length);
+    this.progressMonitor.setTotalSymbols(totalSymbols);
+
+    this.progressMonitor.start(4, 'Starting wiki generation...');
+    this.progressMonitor.updatePhase('initialization', 1, 'Initializing...');
+
+    try {
+      this.progressMonitor.updatePhase('analysis', parsedFiles.length, 'Analyzing architecture...');
+      this.emitProgress('architecture-analyzing', 'analysis', 0, parsedFiles.length);
+      
+      const archReport = architecture || (await this.architectureAnalyzer!.analyze(parsedFiles));
+      
+      this.emitProgress('architecture-analyzed', 'analysis', parsedFiles.length, parsedFiles.length, {
+        pattern: archReport.pattern?.pattern,
+        modules: archReport.modules?.length,
+      });
+
+      this.progressMonitor.updatePhase('generation', 4, 'Generating pages...');
+      const pages = await this.generatePagesWithProgress(parsedFiles, archReport);
+      this.progressMonitor.setTotalPages(pages.length);
+
+      this.progressMonitor.updatePhase('finalization', 5, 'Finalizing...');
+      this.emitProgress('index-building', 'finalization', 0, 5);
+
+      const index = this.buildIndex(pages);
+      this.emitProgress('index-building', 'finalization', 1, 5);
+
+      const metadata = this.buildMetadata(context, parsedFiles);
+      this.emitProgress('index-building', 'finalization', 2, 5);
+
+      const document: WikiDocument = {
+        id: this.generateDocumentId(),
+        name: metadata.projectName,
+        description: `Wiki documentation for ${metadata.projectName}`,
+        pages,
+        index,
+        metadata,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+
+      this.emitProgress('storage-saving', 'finalization', 3, 5);
+      await this.storage!.save(document);
+
+      this.emitProgress('knowledge-indexing', 'finalization', 4, 5);
+      await this.knowledgeBase!.index(document);
+
+      this.emitProgress('page-saving', 'finalization', 4, 5, { pageCount: pages.length });
+      for (const page of pages) {
+        await this.wikiHistory!.saveVersion(page, 'Initial version', this.currentUser);
+        await this.wikiAudit!.log('page-created', {
+          pageId: page.id,
+          pageTitle: page.title,
+          version: page.version,
+          performedBy: this.currentUser,
+        });
+      }
+
+      this.emitProgress('snapshot-creating', 'finalization', 5, 5);
+      const snapshot = this.incrementalUpdater!.createSnapshot(
+        parsedFiles,
+        metadata.commitHash || 'initial'
+      );
+      await this.incrementalUpdater!.saveSnapshot(snapshot);
+
+      this.emitEvent({
+        type: 'wiki-regenerated',
+        timestamp: new Date(),
+        details: { pageCount: pages.length },
+      });
+
+      this.progressMonitor.complete('Wiki generation completed successfully');
+
+      return document;
+    } catch (error) {
+      this.progressMonitor.error(error instanceof Error ? error : new Error(String(error)));
+      throw error;
+    }
+  }
+
+  private emitProgress(
+    type: WikiProgressEvent['type'],
+    phase: GenerationPhase,
+    current: number,
+    total: number,
+    details?: Record<string, unknown>
+  ): void {
+    const event: WikiProgressEvent = {
+      type,
+      phase,
+      progress: this.progressMonitor?.getProgress().progress || 0,
+      current,
+      total,
+      message: `${type}...`,
+      timestamp: new Date(),
+      details,
+    };
+    this.emit('progress', event);
+  }
+
+  private async generatePagesWithProgress(
+    parsedFiles: ParsedFile[],
+    architecture: any
+  ): Promise<WikiPage[]> {
+    const pages: WikiPage[] = [];
+    const totalPages = 4 + parsedFiles.length * 2;
+    let currentPage = 0;
+
+    this.progressMonitor?.reportPageProgress(++currentPage, totalPages, 'Overview');
+    pages.push(this.createOverviewPage(parsedFiles, architecture));
+
+    this.progressMonitor?.reportPageProgress(++currentPage, totalPages, 'Architecture');
+    pages.push(this.createArchitecturePage(architecture));
+
+    this.progressMonitor?.reportPageProgress(++currentPage, totalPages, 'Modules');
+    const modulePages = this.createModulePages(parsedFiles);
+    pages.push(...modulePages);
+    currentPage += modulePages.length;
+    this.progressMonitor?.reportPageProgress(currentPage, totalPages, 'Modules completed');
+
+    this.progressMonitor?.reportPageProgress(++currentPage, totalPages, 'API Reference');
+    const apiPages = this.createAPIPages(parsedFiles);
+    pages.push(...apiPages);
+    currentPage += apiPages.length;
+    this.progressMonitor?.reportPageProgress(currentPage, totalPages, 'API Reference completed');
+
+    return pages;
   }
 
   async update(changeSet: ChangeSet): Promise<void> {
@@ -1041,22 +1142,6 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     riskLevel: RiskLevel
   ): Promise<SuggestedAction[]> {
     return this.suggestionGenerator!.generateAllSuggestions(impacts, riskLevel);
-  }
-
-  private async generatePages(parsedFiles: ParsedFile[], architecture: any): Promise<WikiPage[]> {
-    const pages: WikiPage[] = [];
-
-    pages.push(this.createOverviewPage(parsedFiles, architecture));
-
-    pages.push(this.createArchitecturePage(architecture));
-
-    const modulePages = this.createModulePages(parsedFiles);
-    pages.push(...modulePages);
-
-    const apiPages = this.createAPIPages(parsedFiles);
-    pages.push(...apiPages);
-
-    return pages;
   }
 
   private createOverviewPage(parsedFiles: ParsedFile[], architecture: any): WikiPage {

@@ -124,6 +124,76 @@ export interface WikiEvent {
 
 export type WikiEventCallback = (event: WikiEvent) => void | Promise<void>;
 
+// ==================== 进度监控类型 ====================
+
+export type GenerationPhase = 'initialization' | 'analysis' | 'generation' | 'finalization';
+
+export type ProgressEventType =
+  | 'generation-started'
+  | 'generation-completed'
+  | 'generation-error'
+  | 'architecture-analyzing'
+  | 'architecture-analyzed'
+  | 'page-generating'
+  | 'page-generated'
+  | 'page-saving'
+  | 'index-building'
+  | 'storage-saving'
+  | 'knowledge-indexing'
+  | 'snapshot-creating';
+
+export interface WikiProgressEvent {
+  type: ProgressEventType;
+  phase: GenerationPhase;
+  progress: number;
+  current: number;
+  total: number;
+  message: string;
+  timestamp: Date;
+  pageId?: string;
+  pageTitle?: string;
+  details?: Record<string, unknown>;
+}
+
+export interface ProgressInfo {
+  phase: GenerationPhase;
+  progress: number;
+  current: number;
+  total: number;
+  message: string;
+  percentage: string;
+}
+
+export type ProgressCallback = (info: ProgressInfo) => void;
+
+export interface GenerationStats {
+  totalFiles: number;
+  totalSymbols: number;
+  totalPages: number;
+  phases: PhaseStats[];
+  startTime: Date;
+  endTime?: Date;
+  duration?: number;
+  errors: GenerationError[];
+}
+
+export interface PhaseStats {
+  phase: GenerationPhase;
+  startTime: Date;
+  endTime?: Date;
+  duration?: number;
+  itemsProcessed: number;
+  totalItems: number;
+}
+
+export interface GenerationError {
+  phase: GenerationPhase;
+  message: string;
+  timestamp: Date;
+  recoverable: boolean;
+  details?: Record<string, unknown>;
+}
+
 export interface WikiOptions {
   outputDir: string;
   format: DocumentFormat;
@@ -133,6 +203,8 @@ export interface WikiOptions {
   generateSearch?: boolean;
   watchMode?: boolean;
   autoUpdate?: boolean;
+  onProgress?: ProgressCallback;
+  verbose?: boolean;
 }
 
 export interface WikiContext {

@@ -16,6 +16,7 @@ module.exports = {
     '^@llm/(.*)$': '<rootDir>/src/llm/$1',
     '^@utils/(.*)$': '<rootDir>/src/utils/$1',
     '^@wiki/(.*)$': '<rootDir>/src/wiki/$1',
+    '^@cli/(.*)$': '<rootDir>/src/cli/$1',
   },
   transform: {
     '^.+\\.ts$': ['ts-jest', { tsconfig: 'tsconfig.test.json' }],

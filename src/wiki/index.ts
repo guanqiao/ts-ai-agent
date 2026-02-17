@@ -10,6 +10,8 @@ export { WikiVectorStore } from './wiki-vector-store';
 export { WikiContextCompressor } from './wiki-context-compressor';
 export { WikiMemory } from './wiki-memory';
 export { WikiPromptEnhancer } from './wiki-prompt-enhancer';
+export { WikiProgressMonitor, createProgressMonitor } from './wiki-progress-monitor';
+export type { IWikiProgressMonitor } from './wiki-progress-monitor';
 export * from './sharing';
 export * from './graph';
 export * from './editor';

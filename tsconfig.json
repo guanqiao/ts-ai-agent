@@ -31,7 +31,9 @@
       "@parsers/*": ["src/parsers/*"],
       "@generators/*": ["src/generators/*"],
       "@llm/*": ["src/llm/*"],
-      "@utils/*": ["src/utils/*"]
+      "@utils/*": ["src/utils/*"],
+      "@wiki/*": ["src/wiki/*"],
+      "@cli/*": ["src/cli/*"]
     }
   },
   "include": ["src/**/*"],

@@ -1,4 +1,4 @@
-import { IServiceToken, ServiceToken, DIContainer, ServiceLifetime } from '@core/di';
+import { IServiceToken, ServiceToken, DIContainer, ServiceLifetime, ServiceLocator } from '@core/di';
 import { WikiStorage } from '../wiki-storage';
 import { WikiHistory } from '../wiki-history';
 import { WikiAudit } from '../wiki-audit';
@@ -160,7 +160,7 @@ export class WikiServiceFactory {
     });
   }
 
-  static async createWikiManager(container: DIContainer): Promise<WikiManager> {
+  static async createWikiManager(container: DIContainer, projectPath: string): Promise<WikiManager> {
     const storage = container.resolve(WikiServiceTokens.Storage);
     const history = container.resolve(WikiServiceTokens.History);
     const audit = container.resolve(WikiServiceTokens.Audit);
@@ -207,7 +207,7 @@ export class WikiServiceFactory {
       riskAssessmentService,
       suggestionGenerator,
       llmService,
-    });
+    }, projectPath);
 
     return manager;
   }
