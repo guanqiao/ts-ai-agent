@@ -1,8 +1,5 @@
 import { EventEmitter } from 'events';
-import {
-  IWikiPreview,
-  TableOfContentsEntry,
-} from './types';
+import { IWikiPreview, TableOfContentsEntry } from './types';
 
 export class WikiPreview extends EventEmitter implements IWikiPreview {
   private renderedContent: string = '';
@@ -58,13 +55,10 @@ export class WikiPreview extends EventEmitter implements IWikiPreview {
   }
 
   private processCodeBlocks(content: string): string {
-    return content.replace(
-      /```(\w*)\n([\s\S]*?)```/g,
-      (_, lang, code) => {
-        const escapedCode = this.escapeHtml(code.trim());
-        return `<pre class="code-block" data-language="${lang || 'text'}"><code class="language-${lang || 'text'}">${escapedCode}</code></pre>`;
-      }
-    );
+    return content.replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+      const escapedCode = this.escapeHtml(code.trim());
+      return `<pre class="code-block" data-language="${lang || 'text'}"><code class="language-${lang || 'text'}">${escapedCode}</code></pre>`;
+    });
   }
 
   private processInlineCode(content: string): string {
@@ -72,14 +66,11 @@ export class WikiPreview extends EventEmitter implements IWikiPreview {
   }
 
   private processLinks(content: string): string {
-    return content.replace(
-      /\[([^\]]+)\]\(([^)]+)\)/g,
-      (_, text, url) => {
-        const isExternal = url.startsWith('http://') || url.startsWith('https://');
-        const target = isExternal ? ' target="_blank" rel="noopener noreferrer"' : '';
-        return `<a href="${url}" class="wiki-link${isExternal ? ' external' : ''}"${target}>${text}</a>`;
-      }
-    );
+    return content.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, text, url) => {
+      const isExternal = url.startsWith('http://') || url.startsWith('https://');
+      const target = isExternal ? ' target="_blank" rel="noopener noreferrer"' : '';
+      return `<a href="${url}" class="wiki-link${isExternal ? ' external' : ''}"${target}>${text}</a>`;
+    });
   }
 
   private processImages(content: string): string {
@@ -185,27 +176,18 @@ export class WikiPreview extends EventEmitter implements IWikiPreview {
   }
 
   private processBlockquotes(content: string): string {
-    return content.replace(
-      /^>\s+(.+)$/gm,
-      '<blockquote class="wiki-blockquote">$1</blockquote>'
-    );
+    return content.replace(/^>\s+(.+)$/gm, '<blockquote class="wiki-blockquote">$1</blockquote>');
   }
 
   private processHorizontalRules(content: string): string {
-    return content.replace(
-      /^[-*_]{3,}$/gm,
-      '<hr class="wiki-hr" />'
-    );
+    return content.replace(/^[-*_]{3,}$/gm, '<hr class="wiki-hr" />');
   }
 
   private processTaskLists(content: string): string {
-    return content.replace(
-      /^-\s+\[([ xX])\]\s+(.+)$/gm,
-      (_, checked, text) => {
-        const isChecked = checked.toLowerCase() === 'x';
-        return `<div class="task-item"><input type="checkbox" ${isChecked ? 'checked' : ''} disabled /> <span>${text}</span></div>`;
-      }
-    );
+    return content.replace(/^-\s+\[([ xX])\]\s+(.+)$/gm, (_, checked, text) => {
+      const isChecked = checked.toLowerCase() === 'x';
+      return `<div class="task-item"><input type="checkbox" ${isChecked ? 'checked' : ''} disabled /> <span>${text}</span></div>`;
+    });
   }
 
   private escapeHtml(text: string): string {

@@ -8,10 +8,19 @@ import * as path from 'path';
 import { TypeScriptParser, JavaParser } from '../parsers';
 import { AgentOrchestrator } from '../agents';
 import { TemplateEngine } from '../generators';
-import { WikiManager, WikiOptions, WikiContext } from '../wiki';
+import {
+  WikiManager,
+  WikiOptions,
+  WikiContext,
+  WikiDocument,
+  WikiProgressMonitor,
+  WikiProgressPersistence,
+  WikiProgressEvent,
+} from '../wiki';
 import { ArchitectureAnalyzer } from '../architecture';
 import { HybridSearch } from '../search';
 import { ConfigManager } from '../config';
+import { EnhancedProgressBar } from './progress-bar';
 import {
   GeneratorOptions,
   LLMProvider,
@@ -238,6 +247,8 @@ program
   .option('--collab-role <role>', 'Collaborator role (admin, editor, viewer)', 'editor')
   .option('--impact-file <file>', 'File path for impact analysis')
   .option('--impact-type <type>', 'Change type (added, modified, removed)', 'modified')
+  .option('--incremental', 'Use incremental update if possible', false)
+  .option('--force', 'Force full regeneration', false)
   .action(async (action: string, input: string, options: any) => {
     const spinner = ora('Initializing Wiki...').start();
 
@@ -387,7 +398,14 @@ async function handleWikiGenerate(
   options: any,
   spinner: any
 ): Promise<void> {
-  spinner.text = 'Parsing source code...';
+  const useIncremental = options.incremental && !options.force;
+  const forceFull = options.force;
+
+  if (useIncremental) {
+    spinner.text = 'Checking for existing wiki...';
+  } else {
+    spinner.text = 'Parsing source code...';
+  }
 
   const parseResult = await parseInput(inputPath, { language: options.language || 'typescript' });
 
@@ -404,8 +422,23 @@ async function handleWikiGenerate(
   spinner.succeed('Architecture analysis complete');
   spinner.stop();
 
-  const progressBar = createProgressBar();
-  let lastPhase = '';
+  const enhancedProgressBar = new EnhancedProgressBar({
+    width: 40,
+    showTimeEstimate: true,
+    showPhaseProgress: true,
+    showSpeed: true,
+  });
+
+  const progressMonitor = new WikiProgressMonitor();
+  const progressPersistence = new WikiProgressPersistence(inputPath);
+
+  progressMonitor.on('progress', (event: WikiProgressEvent) => {
+    if (options.verbose) {
+      console.log(chalk.gray(`  [${event.phase}] ${event.type}: ${event.message}`));
+    }
+  });
+
+  enhancedProgressBar.start('Wiki 文档生成');
 
   const context: WikiContext = {
     projectPath: inputPath,
@@ -418,75 +451,93 @@ async function handleWikiGenerate(
       generateIndex: true,
       generateSearch: true,
       onProgress: (info) => {
-        if (info.phase !== lastPhase) {
-          lastPhase = info.phase;
-          progressBar.updatePhase(info.phase);
-        }
-        progressBar.update(info.progress, info.message);
+        enhancedProgressBar.updatePhase(info.phase);
+        enhancedProgressBar.update(info);
       },
     },
   };
 
-  wikiManager.on('progress', (event: any) => {
-    if (options.verbose) {
-      console.log(chalk.gray(`  [${event.phase}] ${event.type}: ${event.message}`));
+  wikiManager.on('progress', (event: WikiProgressEvent) => {
+    const snapshot = progressPersistence.createSnapshot(
+      event.phase,
+      event.current,
+      event.total,
+      event.progress,
+      progressMonitor.getStats(),
+      progressMonitor.getTimeEstimate()
+    );
+    progressPersistence.save(snapshot).catch(() => {});
+  });
+
+  let document: WikiDocument;
+  let incrementalResult: any = null;
+
+  try {
+    if (useIncremental || (!forceFull && !options.incremental)) {
+      const result = await wikiManager.generateIncremental(context, forceFull);
+      document = result.document;
+      incrementalResult = result.result;
+    } else {
+      document = await wikiManager.generate(context);
     }
-  });
 
-  const document = await wikiManager.generate(context);
+    const stats = progressMonitor.getStats();
+    enhancedProgressBar.complete({
+      totalPages: document.pages.length,
+      duration: stats.duration || 0,
+    });
 
-  progressBar.complete();
+    await progressPersistence.clear(inputPath);
+  } catch (error) {
+    enhancedProgressBar.error(error instanceof Error ? error.message : String(error));
+    throw error;
+  }
 
-  console.log(chalk.blue('\nGenerated Pages:'));
-  document.pages.slice(0, 10).forEach((page) => {
-    console.log(chalk.green(`  - ${page.title}`));
-  });
+  if (incrementalResult && incrementalResult.strategy !== 'full') {
+    console.log(chalk.blue('\n📊 Incremental Update Summary:'));
+    console.log(chalk.cyan(`  Strategy: ${incrementalResult.strategy}`));
+    console.log(chalk.cyan(`  Change percentage: ${incrementalResult.changePercentage.toFixed(1)}%`));
+    console.log(chalk.cyan(`  Total time: ${incrementalResult.totalTime}ms`));
 
-  if (document.pages.length > 10) {
-    console.log(chalk.gray(`  ... and ${document.pages.length - 10} more`));
+    if (incrementalResult.pagesUpdated.length > 0) {
+      console.log(chalk.green(`\n  ✓ Updated pages (${incrementalResult.pagesUpdated.length}):`));
+      incrementalResult.pagesUpdated.slice(0, 5).forEach((pageId: string) => {
+        console.log(chalk.green(`    - ${pageId}`));
+      });
+      if (incrementalResult.pagesUpdated.length > 5) {
+        console.log(chalk.gray(`    ... and ${incrementalResult.pagesUpdated.length - 5} more`));
+      }
+    }
+
+    if (incrementalResult.pagesUnchanged.length > 0) {
+      console.log(chalk.gray(`\n  ○ Unchanged pages: ${incrementalResult.pagesUnchanged.length}`));
+    }
+
+    if (incrementalResult.pagesAdded.length > 0) {
+      console.log(chalk.green(`\n  + Added pages: ${incrementalResult.pagesAdded.length}`));
+    }
+
+    if (incrementalResult.pagesDeleted.length > 0) {
+      console.log(chalk.red(`\n  - Deleted pages: ${incrementalResult.pagesDeleted.length}`));
+    }
+
+    console.log(chalk.blue('\n📈 Performance Metrics:'));
+    console.log(chalk.gray(`  Parse time: ${incrementalResult.metrics.parseTime}ms`));
+    console.log(chalk.gray(`  Analysis time: ${incrementalResult.metrics.analysisTime}ms`));
+    console.log(chalk.gray(`  Update time: ${incrementalResult.metrics.updateTime}ms`));
+    console.log(chalk.gray(`  Save time: ${incrementalResult.metrics.saveTime}ms`));
+  } else {
+    console.log(chalk.blue('\nGenerated Pages:'));
+    document.pages.slice(0, 10).forEach((page) => {
+      console.log(chalk.green(`  - ${page.title}`));
+    });
+
+    if (document.pages.length > 10) {
+      console.log(chalk.gray(`  ... and ${document.pages.length - 10} more`));
+    }
   }
 
   console.log(chalk.green('\n✓ Done!'));
-}
-
-function createProgressBar() {
-  let lastProgress = 0;
-  let currentPhase = '';
-
-  const phaseLabels: Record<string, string> = {
-    initialization: '初始化',
-    analysis: '架构分析',
-    generation: '生成页面',
-    finalization: '完成处理',
-  };
-
-  const printProgress = (progress: number, message: string) => {
-    const width = 40;
-    const filled = Math.round((progress / 100) * width);
-    const empty = width - filled;
-    const bar = '█'.repeat(filled) + '░'.repeat(empty);
-    const phaseLabel = phaseLabels[currentPhase] || currentPhase;
-
-    process.stdout.write(
-      `\r${chalk.cyan(`[${phaseLabel}]`)} [${chalk.green(bar)}] ${progress.toFixed(0).padStart(3)}% ${chalk.gray(message.substring(0, 40).padEnd(40))}`
-    );
-  };
-
-  return {
-    updatePhase(phase: string) {
-      currentPhase = phase;
-    },
-    update(progress: number, message: string) {
-      if (progress !== lastProgress) {
-        printProgress(progress, message);
-        lastProgress = progress;
-      }
-    },
-    complete() {
-      printProgress(100, '完成!');
-      process.stdout.write('\n');
-    },
-  };
 }
 
 async function handleWikiWatch(wikiManager: WikiManager, spinner: any): Promise<void> {
@@ -810,7 +861,11 @@ async function parseInput(inputPath: string, options: any): Promise<ParseResult>
   };
 }
 
-async function handleWikiShare(wikiManager: WikiManager, options: any, spinner: any): Promise<void> {
+async function handleWikiShare(
+  wikiManager: WikiManager,
+  options: any,
+  spinner: any
+): Promise<void> {
   spinner.text = 'Initializing wiki sharing...';
 
   await wikiManager.initializeSharing({
@@ -976,20 +1031,30 @@ async function handleWikiADR(wikiManager: WikiManager, options: any, spinner: an
   if (adrs.length === 0) {
     console.log(chalk.yellow('No ADRs found'));
     console.log(chalk.gray('\nCreate a new ADR with:'));
-    console.log('  tsd-gen wiki adr --adr-title "Title" --adr-context "Context" --adr-decision "Decision"');
+    console.log(
+      '  tsd-gen wiki adr --adr-title "Title" --adr-context "Context" --adr-decision "Decision"'
+    );
     return;
   }
 
   adrs.forEach((adr: any, index: number) => {
-    const statusColor = adr.status === 'accepted' ? chalk.green : 
-                       adr.status === 'deprecated' ? chalk.red : chalk.yellow;
+    const statusColor =
+      adr.status === 'accepted'
+        ? chalk.green
+        : adr.status === 'deprecated'
+          ? chalk.red
+          : chalk.yellow;
     console.log(`${index + 1}. ${adr.title} ${statusColor(`[${adr.status}]`)}`);
     console.log(chalk.gray(`   ID: ${adr.id}`));
     console.log(chalk.gray(`   Date: ${adr.date.toISOString().split('T')[0]}`));
   });
 }
 
-async function handleWikiCollab(wikiManager: WikiManager, options: any, spinner: any): Promise<void> {
+async function handleWikiCollab(
+  wikiManager: WikiManager,
+  options: any,
+  spinner: any
+): Promise<void> {
   if (options.collabUser && options.collabRole) {
     spinner.text = 'Adding collaborator...';
     const contributor = await wikiManager.addContributor(
@@ -1017,15 +1082,23 @@ async function handleWikiCollab(wikiManager: WikiManager, options: any, spinner:
   }
 
   contributors.forEach((contributor: any, index: number) => {
-    const roleColor = contributor.role === 'admin' ? chalk.red : 
-                     contributor.role === 'editor' ? chalk.green : chalk.gray;
+    const roleColor =
+      contributor.role === 'admin'
+        ? chalk.red
+        : contributor.role === 'editor'
+          ? chalk.green
+          : chalk.gray;
     console.log(`${index + 1}. ${contributor.name} ${roleColor(`[${contributor.role}]`)}`);
     console.log(chalk.gray(`   Email: ${contributor.email}`));
     console.log(chalk.gray(`   Joined: ${contributor.joinedAt.toISOString().split('T')[0]}`));
   });
 }
 
-async function handleWikiImpact(wikiManager: WikiManager, options: any, spinner: any): Promise<void> {
+async function handleWikiImpact(
+  wikiManager: WikiManager,
+  options: any,
+  spinner: any
+): Promise<void> {
   if (!options.impactFile) {
     spinner.fail('Please provide --impact-file option');
     console.log(chalk.gray('\nUsage:'));
@@ -1035,10 +1108,7 @@ async function handleWikiImpact(wikiManager: WikiManager, options: any, spinner:
 
   spinner.text = 'Analyzing change impact...';
 
-  const impact = await wikiManager.analyzeChangeImpact(
-    options.impactFile,
-    options.impactType
-  );
+  const impact = await wikiManager.analyzeChangeImpact(options.impactFile, options.impactType);
 
   spinner.succeed('Impact analysis complete');
 
@@ -1052,8 +1122,12 @@ async function handleWikiImpact(wikiManager: WikiManager, options: any, spinner:
     console.log(chalk.gray('  No direct impacts'));
   } else {
     impact.directImpacts.forEach((item: any) => {
-      const levelColor = item.impactLevel === 'high' ? chalk.red : 
-                        item.impactLevel === 'medium' ? chalk.yellow : chalk.green;
+      const levelColor =
+        item.impactLevel === 'high'
+          ? chalk.red
+          : item.impactLevel === 'medium'
+            ? chalk.yellow
+            : chalk.green;
       console.log(`  - ${item.name} ${levelColor(`[${item.impactLevel}]`)}`);
       console.log(chalk.gray(`    Path: ${item.path}`));
       console.log(chalk.gray(`    Description: ${item.description}`));
@@ -1065,17 +1139,26 @@ async function handleWikiImpact(wikiManager: WikiManager, options: any, spinner:
     console.log(chalk.gray('  No indirect impacts'));
   } else {
     impact.indirectImpacts.forEach((item: any) => {
-      const levelColor = item.impactLevel === 'high' ? chalk.red : 
-                        item.impactLevel === 'medium' ? chalk.yellow : chalk.green;
+      const levelColor =
+        item.impactLevel === 'high'
+          ? chalk.red
+          : item.impactLevel === 'medium'
+            ? chalk.yellow
+            : chalk.green;
       console.log(`  - ${item.name} ${levelColor(`[${item.impactLevel}]`)}`);
       console.log(chalk.gray(`    Path: ${item.path}`));
     });
   }
 
   console.log(chalk.blue('\n## Risk Assessment'));
-  const riskColor = impact.riskAssessment.overallRisk === 'critical' ? chalk.red :
-                   impact.riskAssessment.overallRisk === 'high' ? chalk.yellow :
-                   impact.riskAssessment.overallRisk === 'medium' ? chalk.blue : chalk.green;
+  const riskColor =
+    impact.riskAssessment.overallRisk === 'critical'
+      ? chalk.red
+      : impact.riskAssessment.overallRisk === 'high'
+        ? chalk.yellow
+        : impact.riskAssessment.overallRisk === 'medium'
+          ? chalk.blue
+          : chalk.green;
   console.log(`  Overall Risk: ${riskColor(impact.riskAssessment.overallRisk)}`);
   console.log(`  Risk Score: ${impact.riskAssessment.riskScore}`);
   console.log(chalk.gray(`  Recommendation: ${impact.riskAssessment.recommendation}`));
@@ -1083,9 +1166,14 @@ async function handleWikiImpact(wikiManager: WikiManager, options: any, spinner:
   if (impact.suggestedActions.length > 0) {
     console.log(chalk.blue('\n## Suggested Actions'));
     impact.suggestedActions.slice(0, 5).forEach((action: any) => {
-      const priorityColor = action.priority === 'urgent' ? chalk.red :
-                           action.priority === 'high' ? chalk.yellow :
-                           action.priority === 'medium' ? chalk.blue : chalk.gray;
+      const priorityColor =
+        action.priority === 'urgent'
+          ? chalk.red
+          : action.priority === 'high'
+            ? chalk.yellow
+            : action.priority === 'medium'
+              ? chalk.blue
+              : chalk.gray;
       console.log(`  - ${action.description} ${priorityColor(`[${action.priority}]`)}`);
       console.log(chalk.gray(`    Type: ${action.type}`));
       console.log(chalk.gray(`    Target: ${action.target}`));

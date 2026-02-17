@@ -71,15 +71,20 @@ export const SUMMARY_TEMPLATES: SummaryTemplate[] = [
     type: 'brief',
     template: '{{title}} is {{description}}. Key features include: {{keyPoints}}.',
     variables: ['title', 'description', 'keyPoints'],
-    examples: ['UserService is a service for managing users. Key features include: authentication, profile management.'],
+    examples: [
+      'UserService is a service for managing users. Key features include: authentication, profile management.',
+    ],
   },
   {
     id: 'api-reference',
     name: 'API Reference',
     type: 'api',
-    template: '## {{name}}\n\n{{description}}\n\n### Methods\n{{methods}}\n\n### Parameters\n{{parameters}}',
+    template:
+      '## {{name}}\n\n{{description}}\n\n### Methods\n{{methods}}\n\n### Parameters\n{{parameters}}',
     variables: ['name', 'description', 'methods', 'parameters'],
-    examples: ['## UserService\n\nManages user operations.\n\n### Methods\n- getUser(id)\n- createUser(data)'],
+    examples: [
+      '## UserService\n\nManages user operations.\n\n### Methods\n- getUser(id)\n- createUser(data)',
+    ],
   },
   {
     id: 'architecture',
@@ -87,7 +92,9 @@ export const SUMMARY_TEMPLATES: SummaryTemplate[] = [
     type: 'architecture',
     template: 'The {{system}} follows {{pattern}} pattern. It consists of {{components}}.',
     variables: ['system', 'pattern', 'components'],
-    examples: ['The UserService follows service pattern. It consists of: controller, repository, validator.'],
+    examples: [
+      'The UserService follows service pattern. It consists of: controller, repository, validator.',
+    ],
   },
 ];
 

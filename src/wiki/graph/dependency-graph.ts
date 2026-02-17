@@ -38,7 +38,7 @@ export class DependencyGraphGenerator {
 
     for (const [moduleName, files] of moduleMap) {
       const nodeId = this.generateNodeId('module', moduleName);
-      
+
       nodes.push({
         id: nodeId,
         label: moduleName,
@@ -48,7 +48,7 @@ export class DependencyGraphGenerator {
       });
 
       const dependencies = this.extractModuleDependencies(files, parsedFiles);
-      
+
       for (const dep of dependencies) {
         if (dep === moduleName) continue;
         if (!this.shouldIncludeModule(dep)) continue;
@@ -66,7 +66,7 @@ export class DependencyGraphGenerator {
 
     for (const [edgeKey, weight] of edgeMap) {
       const [source, target] = edgeKey.split('->');
-      if (nodes.find(n => n.id === target)) {
+      if (nodes.find((n) => n.id === target)) {
         edges.push({
           id: this.generateEdgeId(),
           source,
@@ -140,7 +140,7 @@ export class DependencyGraphGenerator {
 
     for (const [edgeKey, data] of edgeMap) {
       const [source, target] = edgeKey.split('->');
-      if (nodes.find(n => n.id === target)) {
+      if (nodes.find((n) => n.id === target)) {
         edges.push({
           id: this.generateEdgeId(),
           source,
@@ -193,19 +193,16 @@ export class DependencyGraphGenerator {
   private getModuleName(filePath: string): string {
     const parts = filePath.split(/[/\\]/);
     if (parts.length <= 1) return 'root';
-    
+
     const srcIndex = parts.indexOf('src');
     if (srcIndex >= 0 && srcIndex < parts.length - 2) {
       return parts.slice(srcIndex + 1, srcIndex + 2)[0];
     }
-    
+
     return parts[parts.length - 2] || 'root';
   }
 
-  private extractModuleDependencies(
-    files: ParsedFile[],
-    allFiles: ParsedFile[]
-  ): string[] {
+  private extractModuleDependencies(files: ParsedFile[], allFiles: ParsedFile[]): string[] {
     const dependencies = new Set<string>();
 
     for (const file of files) {
@@ -229,15 +226,15 @@ export class DependencyGraphGenerator {
     if (importSource.startsWith('.')) {
       const dir = path.dirname(fromPath);
       const resolved = path.resolve(dir, importSource);
-      
+
       const extensions = ['.ts', '.tsx', '.js', '.jsx', '.json'];
       for (const ext of extensions) {
         const withExt = resolved + ext;
-        if (allFiles.find(f => f.path === withExt)) {
+        if (allFiles.find((f) => f.path === withExt)) {
           return withExt;
         }
       }
-      
+
       return null;
     }
 
@@ -245,7 +242,7 @@ export class DependencyGraphGenerator {
       return null;
     }
 
-    const matching = allFiles.find(f => f.path.includes(importSource));
+    const matching = allFiles.find((f) => f.path.includes(importSource));
     return matching?.path || null;
   }
 
@@ -269,10 +266,7 @@ export class DependencyGraphGenerator {
 
   private matchesPattern(value: string, pattern: string): boolean {
     const regex = new RegExp(
-      pattern
-        .replace(/\*\*/g, '.*')
-        .replace(/\*/g, '[^/]*')
-        .replace(/\?/g, '.')
+      pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*').replace(/\?/g, '.')
     );
     return regex.test(value);
   }
@@ -285,8 +279,8 @@ export class DependencyGraphGenerator {
 
     for (const layer of architecture.layers || []) {
       const layerNodeIds = nodes
-        .filter(n => n.module && layer.modules?.some((m) => m.name === n.module))
-        .map(n => n.id);
+        .filter((n) => n.module && layer.modules?.some((m) => m.name === n.module))
+        .map((n) => n.id);
 
       if (layerNodeIds.length > 0) {
         clusters.push({
@@ -336,7 +330,7 @@ export class DependencyGraphGenerator {
 
   private detectCycles(nodes: GraphNode[], edges: GraphEdge[]): string[][] {
     const adjacencyList = new Map<string, string[]>();
-    const nodeIds = new Set(nodes.map(n => n.id));
+    const nodeIds = new Set(nodes.map((n) => n.id));
 
     for (const node of nodes) {
       adjacencyList.set(node.id, []);
@@ -391,8 +385,8 @@ export class DependencyGraphGenerator {
       for (let i = 0; i < cycle.length - 1; i++) {
         const source = cycle[i];
         const target = cycle[i + 1];
-        
-        const edge = edges.find(e => e.source === source && e.target === target);
+
+        const edge = edges.find((e) => e.source === source && e.target === target);
         if (edge && edge.style) {
           edge.style.color = this.options.theme.highlightColor;
           edge.style.width = 2;
@@ -419,11 +413,11 @@ export class DependencyGraphGenerator {
 
   private getLayerColor(layerName: string): string {
     const colors: Record<string, string> = {
-      'presentation': '#E3F2FD',
-      'application': '#E8F5E9',
-      'domain': '#FFF3E0',
-      'infrastructure': '#F3E5F5',
-      'data': '#ECEFF1',
+      presentation: '#E3F2FD',
+      application: '#E8F5E9',
+      domain: '#FFF3E0',
+      infrastructure: '#F3E5F5',
+      data: '#ECEFF1',
     };
     return colors[layerName.toLowerCase()] || '#F5F5F5';
   }
@@ -432,7 +426,7 @@ export class DependencyGraphGenerator {
     const hash = moduleName.split('').reduce((acc, char) => {
       return char.charCodeAt(0) + ((acc << 5) - acc);
     }, 0);
-    
+
     const hue = Math.abs(hash % 360);
     return `hsl(${hue}, 70%, 95%)`;
   }
@@ -444,7 +438,7 @@ export class DependencyGraphGenerator {
     sourceFiles: number
   ): GraphMetadata {
     let maxDepth = 0;
-    
+
     const adjacencyList = new Map<string, string[]>();
     for (const node of nodes) {
       adjacencyList.set(node.id, []);
@@ -457,15 +451,15 @@ export class DependencyGraphGenerator {
     const calcDepth = (nodeId: string, visited: Set<string>): number => {
       if (depthMap.has(nodeId)) return depthMap.get(nodeId)!;
       if (visited.has(nodeId)) return 0;
-      
+
       visited.add(nodeId);
       const neighbors = adjacencyList.get(nodeId) || [];
       let depth = 0;
-      
+
       for (const neighbor of neighbors) {
         depth = Math.max(depth, calcDepth(neighbor, visited) + 1);
       }
-      
+
       visited.delete(nodeId);
       depthMap.set(nodeId, depth);
       return depth;

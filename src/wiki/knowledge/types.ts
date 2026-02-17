@@ -1,6 +1,19 @@
-export type KnowledgeNodeType = 'concept' | 'api' | 'pattern' | 'component' | 'module' | 'page' | 'decision';
+export type KnowledgeNodeType =
+  | 'concept'
+  | 'api'
+  | 'pattern'
+  | 'component'
+  | 'module'
+  | 'page'
+  | 'decision';
 
-export type KnowledgeEdgeType = 'depends-on' | 'implements' | 'extends' | 'calls' | 'references' | 'related-to';
+export type KnowledgeEdgeType =
+  | 'depends-on'
+  | 'implements'
+  | 'extends'
+  | 'calls'
+  | 'references'
+  | 'related-to';
 
 export interface KnowledgeNodeMetadata {
   stability?: 'stable' | 'experimental' | 'deprecated';

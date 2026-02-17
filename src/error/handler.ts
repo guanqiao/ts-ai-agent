@@ -95,11 +95,7 @@ export const DEFAULT_RETRY_CONFIG: RetryConfig = {
   baseDelayMs: 1000,
   maxDelayMs: 30000,
   backoffMultiplier: 2,
-  retryableErrors: [
-    ErrorCode.LLM_RATE_LIMIT,
-    ErrorCode.LLM_TIMEOUT,
-    ErrorCode.NETWORK_ERROR,
-  ],
+  retryableErrors: [ErrorCode.LLM_RATE_LIMIT, ErrorCode.LLM_TIMEOUT, ErrorCode.NETWORK_ERROR],
 };
 
 export class ErrorHandler {
@@ -111,9 +107,8 @@ export class ErrorHandler {
   }
 
   handleError(error: Error | TSDGeneratorError): TSDGeneratorError {
-    const tsdError = error instanceof TSDGeneratorError
-      ? error
-      : TSDGeneratorError.fromError(error);
+    const tsdError =
+      error instanceof TSDGeneratorError ? error : TSDGeneratorError.fromError(error);
 
     this.errorLog.push(tsdError);
     return tsdError;
@@ -132,8 +127,8 @@ export class ErrorHandler {
   }
 
   getRetryDelay(retryCount: number): number {
-    const delay = this.retryConfig.baseDelayMs * 
-      Math.pow(this.retryConfig.backoffMultiplier, retryCount);
+    const delay =
+      this.retryConfig.baseDelayMs * Math.pow(this.retryConfig.backoffMultiplier, retryCount);
     return Math.min(delay, this.retryConfig.maxDelayMs);
   }
 

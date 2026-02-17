@@ -60,7 +60,7 @@ export class WikiGraphGenerator implements IWikiGraphGenerator {
         lines.push(`    style ${cluster.id} fill:${cluster.style.fillColor}`);
       }
       for (const nodeId of cluster.nodeIds) {
-        const node = graph.nodes.find(n => n.id === nodeId);
+        const node = graph.nodes.find((n) => n.id === nodeId);
         if (node) {
           lines.push(`    ${this.formatMermaidNode(node)}`);
         }
@@ -69,7 +69,7 @@ export class WikiGraphGenerator implements IWikiGraphGenerator {
     }
 
     for (const node of graph.nodes) {
-      const inCluster = graph.clusters.some(c => c.nodeIds.includes(node.id));
+      const inCluster = graph.clusters.some((c) => c.nodeIds.includes(node.id));
       if (!inCluster) {
         lines.push(`  ${this.formatMermaidNode(node)}`);
       }
@@ -120,13 +120,16 @@ export class WikiGraphGenerator implements IWikiGraphGenerator {
 `;
 
     for (const cluster of graph.clusters) {
-      const clusterNodes = cluster.nodeIds.map(id => nodePositions.get(id)).filter(Boolean) as { x: number; y: number }[];
+      const clusterNodes = cluster.nodeIds.map((id) => nodePositions.get(id)).filter(Boolean) as {
+        x: number;
+        y: number;
+      }[];
       if (clusterNodes.length === 0) continue;
 
-      const minX = Math.min(...clusterNodes.map(p => p.x)) - 20;
-      const minY = Math.min(...clusterNodes.map(p => p.y)) - 30;
-      const maxX = Math.max(...clusterNodes.map(p => p.x + nodeWidth)) + 20;
-      const maxY = Math.max(...clusterNodes.map(p => p.y + nodeHeight)) + 20;
+      const minX = Math.min(...clusterNodes.map((p) => p.x)) - 20;
+      const minY = Math.min(...clusterNodes.map((p) => p.y)) - 30;
+      const maxX = Math.max(...clusterNodes.map((p) => p.x + nodeWidth)) + 20;
+      const maxY = Math.max(...clusterNodes.map((p) => p.y + nodeHeight)) + 20;
 
       svg += `  <rect class="cluster" x="${minX + padding}" y="${minY + padding}" width="${maxX - minX}" height="${maxY - minY}" rx="5"/>
   <text class="cluster-label" x="${minX + padding + 10}" y="${minY + padding + 20}">${this.escapeXml(cluster.label)}</text>
@@ -180,9 +183,14 @@ export class WikiGraphGenerator implements IWikiGraphGenerator {
     const opts = { ...this.options, ...options };
     const lines: string[] = [];
 
-    const rankdir = opts.direction === 'LR' ? 'LR' : 
-                    opts.direction === 'BT' ? 'BT' :
-                    opts.direction === 'RL' ? 'RL' : 'TB';
+    const rankdir =
+      opts.direction === 'LR'
+        ? 'LR'
+        : opts.direction === 'BT'
+          ? 'BT'
+          : opts.direction === 'RL'
+            ? 'RL'
+            : 'TB';
 
     lines.push('digraph G {');
     lines.push(`  rankdir=${rankdir};`);
@@ -197,7 +205,7 @@ export class WikiGraphGenerator implements IWikiGraphGenerator {
         lines.push(`    fillcolor="${cluster.style.fillColor}";`);
       }
       for (const nodeId of cluster.nodeIds) {
-        const node = graph.nodes.find(n => n.id === nodeId);
+        const node = graph.nodes.find((n) => n.id === nodeId);
         if (node) {
           const color = node.style?.fillColor || opts.theme.nodeColors[node.type] || '#fff';
           lines.push(`    "${node.id}" [label="${node.label}", fillcolor="${color}"];`);
@@ -207,7 +215,7 @@ export class WikiGraphGenerator implements IWikiGraphGenerator {
     }
 
     for (const node of graph.nodes) {
-      const inCluster = graph.clusters.some(c => c.nodeIds.includes(node.id));
+      const inCluster = graph.clusters.some((c) => c.nodeIds.includes(node.id));
       if (!inCluster) {
         const color = node.style?.fillColor || opts.theme.nodeColors[node.type] || '#fff';
         lines.push(`  "${node.id}" [label="${node.label}", fillcolor="${color}"];`);
@@ -240,19 +248,17 @@ export class WikiGraphGenerator implements IWikiGraphGenerator {
     let filteredEdges = [...graph.edges];
 
     if (filter.nodeTypes && filter.nodeTypes.length > 0) {
-      filteredNodes = filteredNodes.filter(n => filter.nodeTypes!.includes(n.type));
+      filteredNodes = filteredNodes.filter((n) => filter.nodeTypes!.includes(n.type));
     }
 
     if (filter.modules && filter.modules.length > 0) {
-      filteredNodes = filteredNodes.filter(n => 
-        !n.module || filter.modules!.includes(n.module)
-      );
+      filteredNodes = filteredNodes.filter((n) => !n.module || filter.modules!.includes(n.module));
     }
 
     if (filter.excludePatterns && filter.excludePatterns.length > 0) {
-      filteredNodes = filteredNodes.filter(n => {
+      filteredNodes = filteredNodes.filter((n) => {
         if (!n.path) return true;
-        return !filter.excludePatterns!.some(pattern => 
+        return !filter.excludePatterns!.some((pattern) =>
           new RegExp(pattern.replace(/\*/g, '.*')).test(n.path!)
         );
       });
@@ -262,25 +268,23 @@ export class WikiGraphGenerator implements IWikiGraphGenerator {
       filteredNodes = filteredNodes.slice(0, filter.maxNodes);
     }
 
-    const nodeIds = new Set(filteredNodes.map(n => n.id));
-    filteredEdges = filteredEdges.filter(e => 
-      nodeIds.has(e.source) && nodeIds.has(e.target)
-    );
+    const nodeIds = new Set(filteredNodes.map((n) => n.id));
+    filteredEdges = filteredEdges.filter((e) => nodeIds.has(e.source) && nodeIds.has(e.target));
 
     if (filter.minWeight !== undefined) {
-      filteredEdges = filteredEdges.filter(e => e.weight >= filter.minWeight!);
+      filteredEdges = filteredEdges.filter((e) => e.weight >= filter.minWeight!);
     }
 
     if (filter.edgeTypes && filter.edgeTypes.length > 0) {
-      filteredEdges = filteredEdges.filter(e => filter.edgeTypes!.includes(e.type));
+      filteredEdges = filteredEdges.filter((e) => filter.edgeTypes!.includes(e.type));
     }
 
     const filteredClusters = graph.clusters
-      .map(c => ({
+      .map((c) => ({
         ...c,
-        nodeIds: c.nodeIds.filter(id => nodeIds.has(id)),
+        nodeIds: c.nodeIds.filter((id) => nodeIds.has(id)),
       }))
-      .filter(c => c.nodeIds.length > 0);
+      .filter((c) => c.nodeIds.length > 0);
 
     return {
       ...graph,

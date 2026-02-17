@@ -12,7 +12,6 @@ import {
 } from './types';
 
 export class DocumentStructureGenerator implements IStructureGenerator {
-
   constructor(_llmService?: unknown, _options?: unknown) {}
 
   async generateStructure(
@@ -65,11 +64,15 @@ export class DocumentStructureGenerator implements IStructureGenerator {
     const projectStats = this.analyzeProjectStats(parsedFiles);
 
     if (!existingTypes.has(SectionType.Overview)) {
-      suggestions.push(this.createSection(SectionType.Overview, 'Overview', SectionPriority.Critical));
+      suggestions.push(
+        this.createSection(SectionType.Overview, 'Overview', SectionPriority.Critical)
+      );
     }
 
     if (!existingTypes.has(SectionType.Architecture) && projectStats.hasMultipleModules) {
-      suggestions.push(this.createSection(SectionType.Architecture, 'Architecture', SectionPriority.High));
+      suggestions.push(
+        this.createSection(SectionType.Architecture, 'Architecture', SectionPriority.High)
+      );
     }
 
     if (!existingTypes.has(SectionType.Module) && projectStats.moduleCount > 1) {
@@ -81,7 +84,9 @@ export class DocumentStructureGenerator implements IStructureGenerator {
     }
 
     if (!existingTypes.has(SectionType.Guide) && projectStats.hasEntryPoints) {
-      suggestions.push(this.createSection(SectionType.Guide, 'Getting Started', SectionPriority.High));
+      suggestions.push(
+        this.createSection(SectionType.Guide, 'Getting Started', SectionPriority.High)
+      );
     }
 
     if (!existingTypes.has(SectionType.Example) && projectStats.hasTests) {
@@ -89,7 +94,9 @@ export class DocumentStructureGenerator implements IStructureGenerator {
     }
 
     if (!existingTypes.has(SectionType.Config) && projectStats.hasConfig) {
-      suggestions.push(this.createSection(SectionType.Config, 'Configuration', SectionPriority.Medium));
+      suggestions.push(
+        this.createSection(SectionType.Config, 'Configuration', SectionPriority.Medium)
+      );
     }
 
     return suggestions;
@@ -515,14 +522,15 @@ export class DocumentStructureGenerator implements IStructureGenerator {
   } {
     const moduleMap = this.groupFilesByModule(parsedFiles);
     const publicAPIs = this.extractPublicAPIs(parsedFiles);
-    const hasEntryPoints = parsedFiles.some((f) =>
-      f.path.includes('index.') || f.path.includes('main.')
+    const hasEntryPoints = parsedFiles.some(
+      (f) => f.path.includes('index.') || f.path.includes('main.')
     );
-    const hasTests = parsedFiles.some((f) =>
-      f.path.includes('.test.') || f.path.includes('.spec.') || f.path.includes('__tests__')
+    const hasTests = parsedFiles.some(
+      (f) => f.path.includes('.test.') || f.path.includes('.spec.') || f.path.includes('__tests__')
     );
-    const hasConfig = parsedFiles.some((f) =>
-      f.path.includes('config') || f.path.endsWith('.config.ts') || f.path.endsWith('.config.js')
+    const hasConfig = parsedFiles.some(
+      (f) =>
+        f.path.includes('config') || f.path.endsWith('.config.ts') || f.path.endsWith('.config.js')
     );
 
     return {
@@ -594,13 +602,19 @@ export class DocumentStructureGenerator implements IStructureGenerator {
 
   private groupAPIsByCategory(
     apis: Array<{ name: string; kind: SymbolKind; filePath: string; description?: string }>
-  ): Map<string, Array<{ name: string; kind: SymbolKind; filePath: string; description?: string }>> {
-    const categoryMap = new Map<string, Array<{
-      name: string;
-      kind: SymbolKind;
-      filePath: string;
-      description?: string;
-    }>>();
+  ): Map<
+    string,
+    Array<{ name: string; kind: SymbolKind; filePath: string; description?: string }>
+  > {
+    const categoryMap = new Map<
+      string,
+      Array<{
+        name: string;
+        kind: SymbolKind;
+        filePath: string;
+        description?: string;
+      }>
+    >();
 
     for (const api of apis) {
       const category = this.getSymbolCategory(api.kind);
@@ -644,10 +658,6 @@ export class DocumentStructureGenerator implements IStructureGenerator {
   }
 
   private generateId(name: string): string {
-    return crypto
-      .createHash('md5')
-      .update(name)
-      .digest('hex')
-      .substring(0, 8);
+    return crypto.createHash('md5').update(name).digest('hex').substring(0, 8);
   }
 }

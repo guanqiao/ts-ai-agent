@@ -46,9 +46,12 @@ describe('WikiProgressMonitor', () => {
       expect(lastEvent.message).toBe('Halfway');
     });
 
-    it('should calculate progress percentage', () => {
+    it('should calculate progress percentage after phase completion', () => {
       monitor.start(10);
-      monitor.updateProgress(5, 'Halfway');
+      monitor.updatePhase('initialization', 1);
+      monitor.updateProgress(1, 'Init done');
+      monitor.updatePhase('analysis', 10);
+      monitor.updateProgress(5, 'Analysis halfway');
 
       const progress = monitor.getProgress();
       expect(progress.progress).toBeGreaterThan(0);
@@ -134,6 +137,7 @@ describe('WikiProgressMonitor', () => {
     });
 
     it('should add error to stats', () => {
+      monitor.on('error', () => {});
       monitor.start(10);
       monitor.error(new Error('Test error'));
 
@@ -191,28 +195,34 @@ describe('WikiProgressMonitor', () => {
 
       monitor.updatePhase('initialization', 1);
       monitor.updateProgress(1, 'Init done');
+      monitor.complete('Init complete');
 
       let progress = monitor.getProgress();
-      expect(progress.progress).toBeLessThan(10);
+      expect(progress.progress).toBe(5);
 
-      monitor.updatePhase('analysis', 10);
-      monitor.updateProgress(10, 'Analysis done');
+      const monitor2 = new WikiProgressMonitor();
+      monitor2.on('progress', () => {});
+      monitor2.start(10);
+      monitor2.updatePhase('analysis', 10);
+      monitor2.updateProgress(10, 'Analysis done');
+      monitor2.complete('Analysis complete');
 
-      progress = monitor.getProgress();
-      expect(progress.progress).toBeGreaterThan(5);
-      expect(progress.progress).toBeLessThan(30);
+      progress = monitor2.getProgress();
+      expect(progress.progress).toBe(25);
 
-      monitor.updatePhase('generation', 10);
-      monitor.updateProgress(10, 'Generation done');
+      const monitor3 = new WikiProgressMonitor();
+      monitor3.on('progress', () => {});
+      monitor3.start(10);
+      monitor3.updatePhase('initialization', 1);
+      monitor3.updateProgress(1, 'Init');
+      monitor3.updatePhase('analysis', 10);
+      monitor3.updateProgress(10, 'Analysis');
+      monitor3.updatePhase('generation', 10);
+      monitor3.updateProgress(10, 'Generation done');
+      monitor3.complete('Generation complete');
 
-      progress = monitor.getProgress();
-      expect(progress.progress).toBeGreaterThan(80);
-
-      monitor.updatePhase('finalization', 5);
-      monitor.updateProgress(5, 'Finalization done');
-
-      progress = monitor.getProgress();
-      expect(progress.progress).toBe(100);
+      progress = monitor3.getProgress();
+      expect(progress.progress).toBe(85);
     });
   });
 

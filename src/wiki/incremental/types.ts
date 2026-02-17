@@ -141,3 +141,148 @@ export interface UpdatePlan {
   dependencies: string[];
   estimatedTime: number;
 }
+
+export interface IncrementalUpdateResult {
+  success: boolean;
+  strategy: 'full' | 'incremental' | 'selective';
+  pagesUpdated: string[];
+  pagesUnchanged: string[];
+  pagesAdded: string[];
+  pagesDeleted: string[];
+  filesProcessed: number;
+  totalTime: number;
+  changePercentage: number;
+  metrics: IncrementalUpdateMetrics;
+}
+
+export interface IncrementalUpdateMetrics {
+  parseTime: number;
+  analysisTime: number;
+  updateTime: number;
+  saveTime: number;
+  cacheHits: number;
+  cacheMisses: number;
+}
+
+export interface PageUpdatePlan {
+  pageId: string;
+  pageTitle: string;
+  updateType: PageUpdateType;
+  mergeStrategy: ContentMergeStrategy;
+  sectionsToUpdate: SectionUpdatePlan[];
+  preserveContent: boolean;
+  reason: string;
+}
+
+export type PageUpdateType = 
+  | 'regenerate'
+  | 'merge'
+  | 'partial-update'
+  | 'skip';
+
+export type ContentMergeStrategy = 
+  | 'replace-sections'
+  | 'append-new'
+  | 'smart-merge'
+  | 'symbol-level';
+
+export interface SectionUpdatePlan {
+  sectionId: string;
+  sectionTitle: string;
+  action: 'replace' | 'merge' | 'append' | 'delete';
+  newContent?: string;
+  mergePoints?: MergePoint[];
+}
+
+export interface MergePoint {
+  position: 'before' | 'after' | 'replace';
+  target: string;
+  content: string;
+}
+
+export interface SymbolChange {
+  symbolName: string;
+  symbolKind: string;
+  filePath: string;
+  changeType: ChangeType;
+  oldSignature?: string;
+  newSignature?: string;
+  oldDescription?: string;
+  newDescription?: string;
+}
+
+export interface WikiSnapshot {
+  id: string;
+  timestamp: Date;
+  commitHash: string;
+  pages: WikiPageSnapshot[];
+  fileHashMap: Map<string, string>;
+  symbolFileMap: Map<string, Set<string>>;
+  pageFileMap: Map<string, Set<string>>;
+}
+
+export interface WikiPageSnapshot {
+  pageId: string;
+  pageTitle: string;
+  version: number;
+  contentHash: string;
+  sourceFiles: string[];
+  symbols: string[];
+  updatedAt: Date;
+}
+
+export interface IncrementalContext {
+  existingDocument: import('../types').WikiDocument | null;
+  lastSnapshot: WikiSnapshot | null;
+  currentFiles: import('../../types').ParsedFile[];
+  changes: ChangeInfo[];
+  changePercentage: number;
+  useIncremental: boolean;
+}
+
+export interface PageContentDiff {
+  pageId: string;
+  addedSections: string[];
+  modifiedSections: SectionDiff[];
+  deletedSections: string[];
+  unchangedSections: string[];
+}
+
+export interface SectionDiff {
+  sectionId: string;
+  sectionTitle: string;
+  oldContent: string;
+  newContent: string;
+  diffLines: DiffLine[];
+}
+
+export interface DiffLine {
+  type: 'added' | 'removed' | 'unchanged';
+  content: string;
+  lineNumber: number;
+}
+
+export const INCREMENTAL_THRESHOLD = {
+  fullRegeneration: 50,
+  incrementalUpdate: 20,
+  selectiveUpdate: 5,
+};
+
+export const PAGE_UPDATE_RULES = {
+  overview: {
+    triggers: ['file-count-change', 'symbol-count-change', 'architecture-change'],
+    mergeStrategy: 'replace-sections' as ContentMergeStrategy,
+  },
+  architecture: {
+    triggers: ['dependency-change', 'pattern-change', 'layer-change'],
+    mergeStrategy: 'smart-merge' as ContentMergeStrategy,
+  },
+  module: {
+    triggers: ['file-in-module-change', 'symbol-in-module-change'],
+    mergeStrategy: 'symbol-level' as ContentMergeStrategy,
+  },
+  api: {
+    triggers: ['symbol-change', 'signature-change', 'description-change'],
+    mergeStrategy: 'symbol-level' as ContentMergeStrategy,
+  },
+};

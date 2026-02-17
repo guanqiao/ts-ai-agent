@@ -56,7 +56,7 @@ export function success<T>(value: T): Success<T> {
   return { success: true, value };
 }
 
-export function failure<T = never>(error: AppError): Failure {
+export function failure(error: AppError): Failure {
   return { success: false, error };
 }
 

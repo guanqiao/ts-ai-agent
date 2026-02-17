@@ -8,6 +8,8 @@ import {
   GenerationStats,
   PhaseStats,
   GenerationError,
+  TimeEstimate,
+  PhaseTimeEstimate,
 } from './types';
 
 export interface IWikiProgressMonitor {
@@ -18,8 +20,9 @@ export interface IWikiProgressMonitor {
   error(error: Error, recoverable?: boolean): void;
   getProgress(): ProgressInfo;
   getStats(): GenerationStats;
+  getTimeEstimate(): TimeEstimate;
   onProgress(callback: ProgressCallback): void;
-  on(event: 'progress' | 'error' | 'complete', listener: (...args: any[]) => void): this;
+  on(event: 'progress' | 'error' | 'complete', listener: (...args: unknown[]) => void): this;
   setTotalFiles(count: number): void;
   setTotalSymbols(count: number): void;
   setTotalPages(count: number): void;
@@ -137,6 +140,7 @@ export class WikiProgressMonitor extends EventEmitter implements IWikiProgressMo
       total: this.totalSteps,
       message: PHASE_MESSAGES[this.currentPhase],
       percentage: `${Math.round(overallProgress)}%`,
+      timeEstimate: this.getTimeEstimate(),
     };
   }
 
@@ -150,6 +154,59 @@ export class WikiProgressMonitor extends EventEmitter implements IWikiProgressMo
       endTime: this.endTime,
       duration: this.endTime ? this.endTime.getTime() - this.startTime.getTime() : undefined,
       errors: this.errors,
+    };
+  }
+
+  getTimeEstimate(): TimeEstimate {
+    const now = Date.now();
+    const elapsedMs = now - this.startTime.getTime();
+    const overallProgress = this.calculateOverallProgress();
+
+    let estimatedTotalMs = 0;
+    let estimatedRemainingMs = 0;
+
+    if (overallProgress > 0) {
+      estimatedTotalMs = elapsedMs / (overallProgress / 100);
+      estimatedRemainingMs = estimatedTotalMs - elapsedMs;
+    }
+
+    const phaseEstimates: PhaseTimeEstimate[] = this.phaseStats.map((stats) => {
+      const phaseElapsed = stats.endTime
+        ? stats.duration || 0
+        : now - stats.startTime.getTime();
+
+      const phaseProgress =
+        stats.totalItems > 0 ? (stats.itemsProcessed / stats.totalItems) * 100 : 0;
+
+      let phaseRemaining = 0;
+      if (phaseProgress > 0 && !stats.endTime) {
+        phaseRemaining = phaseElapsed / phaseProgress * (100 - phaseProgress);
+      }
+
+      const itemsPerSecond =
+        phaseElapsed > 0 ? (stats.itemsProcessed / (phaseElapsed / 1000)) : 0;
+
+      return {
+        phase: stats.phase,
+        elapsedMs: phaseElapsed,
+        estimatedRemainingMs: phaseRemaining,
+        itemsPerSecond,
+        progress: phaseProgress,
+      };
+    });
+
+    const totalItemsProcessed = this.phaseStats.reduce(
+      (sum, s) => sum + s.itemsProcessed,
+      0
+    );
+    const averageSpeed = elapsedMs > 0 ? (totalItemsProcessed / (elapsedMs / 1000)) : 0;
+
+    return {
+      elapsedMs,
+      estimatedRemainingMs: Math.max(0, estimatedRemainingMs),
+      estimatedTotalMs,
+      averageSpeed,
+      phaseEstimates,
     };
   }
 
@@ -176,13 +233,23 @@ export class WikiProgressMonitor extends EventEmitter implements IWikiProgressMo
   reportPageProgress(currentPage: number, totalPages: number, pageTitle?: string): void {
     this.totalSteps = totalPages;
     this.currentStep = currentPage;
-    this.currentPhaseProgress = this.calculatePhaseProgress(currentPage, totalPages);
 
     const message = pageTitle
       ? `Generating page ${currentPage}/${totalPages}: ${pageTitle}`
       : `Generating page ${currentPage}/${totalPages}`;
 
-    this.emitProgressEvent('page-generating', message, { pageTitle });
+    const event: WikiProgressEvent = {
+      type: 'page-generating',
+      phase: this.currentPhase,
+      progress: this.calculateOverallProgress(),
+      current: currentPage,
+      total: totalPages,
+      message,
+      timestamp: new Date(),
+      pageTitle,
+    };
+
+    this.emit('progress', event);
     this.updateCurrentPhaseStats(currentPage);
     this.notifyProgressCallbacks();
   }
@@ -194,19 +261,12 @@ export class WikiProgressMonitor extends EventEmitter implements IWikiProgressMo
       if (stats.endTime) {
         completedWeight += PHASE_WEIGHTS[stats.phase];
       } else if (stats.phase === this.currentPhase) {
-        const phaseProgress = stats.totalItems > 0 
-          ? stats.itemsProcessed / stats.totalItems 
-          : 0;
+        const phaseProgress = stats.totalItems > 0 ? stats.itemsProcessed / stats.totalItems : 0;
         completedWeight += PHASE_WEIGHTS[stats.phase] * phaseProgress;
       }
     }
 
     return Math.min(100, completedWeight);
-  }
-
-  private calculatePhaseProgress(current: number, total: number): number {
-    if (total === 0) return 0;
-    return Math.min(100, (current / total) * 100);
   }
 
   private getProgressEventType(): ProgressEventType {

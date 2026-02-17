@@ -1,8 +1,20 @@
 export type DiagramType = 'layered' | 'component' | 'deployment' | 'sequence' | 'flowchart';
 
-export type DiagramNodeType = 'layer' | 'component' | 'service' | 'database' | 'external' | 'container' | 'actor';
+export type DiagramNodeType =
+  | 'layer'
+  | 'component'
+  | 'service'
+  | 'database'
+  | 'external'
+  | 'container'
+  | 'actor';
 
-export type DiagramEdgeType = 'dependency' | 'dataflow' | 'communication' | 'inheritance' | 'implementation';
+export type DiagramEdgeType =
+  | 'dependency'
+  | 'dataflow'
+  | 'communication'
+  | 'inheritance'
+  | 'implementation';
 
 export interface ArchitectureDiagram {
   id: string;
@@ -178,7 +190,15 @@ export interface Environment {
 export interface DeploymentNode {
   id: string;
   name: string;
-  type: 'server' | 'container' | 'database' | 'cache' | 'queue' | 'storage' | 'cdn' | 'loadbalancer';
+  type:
+    | 'server'
+    | 'container'
+    | 'database'
+    | 'cache'
+    | 'queue'
+    | 'storage'
+    | 'cdn'
+    | 'loadbalancer';
   components: string[];
   connections: Connection[];
 }

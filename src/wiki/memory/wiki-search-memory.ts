@@ -29,7 +29,15 @@ export class WikiSearchMemory implements IMemoryService {
   async storeKnowledge(
     content: string,
     type: MemoryEntryType,
-    metadata?: Partial<{ source: string; pageId: string; filePath: string; symbolName: string; tags: string[]; relevance: number; confidence: number }>
+    metadata?: Partial<{
+      source: string;
+      pageId: string;
+      filePath: string;
+      symbolName: string;
+      tags: string[];
+      relevance: number;
+      confidence: number;
+    }>
   ): Promise<MemoryEntry> {
     const entry = await this.store({
       type,
@@ -47,7 +55,11 @@ export class WikiSearchMemory implements IMemoryService {
     return entry;
   }
 
-  async queryKnowledge(query: string, types?: MemoryEntryType[], limit?: number): Promise<MemoryResult[]> {
+  async queryKnowledge(
+    query: string,
+    types?: MemoryEntryType[],
+    limit?: number
+  ): Promise<MemoryResult[]> {
     return this.query({
       text: query,
       types,
@@ -119,7 +131,9 @@ export class WikiSearchMemory implements IMemoryService {
     }
   }
 
-  async store(entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'updatedAt' | 'accessCount'>): Promise<MemoryEntry> {
+  async store(
+    entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'updatedAt' | 'accessCount'>
+  ): Promise<MemoryEntry> {
     const id = this.generateId();
     const now = new Date();
 
@@ -313,7 +327,10 @@ export class WikiSearchMemory implements IMemoryService {
 
   private calculateRelevance(entry: MemoryEntry, query: MemoryQuery): number {
     let score = 0;
-    const queryTerms = query.text.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+    const queryTerms = query.text
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length > 2);
     const content = entry.content.toLowerCase();
 
     for (const term of queryTerms) {
@@ -347,7 +364,10 @@ export class WikiSearchMemory implements IMemoryService {
 
   private generateHighlights(entry: MemoryEntry, query: MemoryQuery): MemoryHighlight[] {
     const highlights: MemoryHighlight[] = [];
-    const queryTerms = query.text.toLowerCase().split(/\s+/).filter((t) => t.length > 2);
+    const queryTerms = query.text
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length > 2);
     const content = entry.content;
 
     for (const term of queryTerms) {

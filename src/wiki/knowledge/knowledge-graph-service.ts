@@ -23,11 +23,14 @@ export class KnowledgeGraphService {
     return this.graph;
   }
 
-  async query(query: string, options?: {
-    limit?: number;
-    types?: KnowledgeNode['type'][];
-    clusters?: string[];
-  }): Promise<KnowledgeNode[]> {
+  async query(
+    query: string,
+    options?: {
+      limit?: number;
+      types?: KnowledgeNode['type'][];
+      clusters?: string[];
+    }
+  ): Promise<KnowledgeNode[]> {
     if (!this.graph) {
       throw new Error('Knowledge graph not built yet');
     }
@@ -36,23 +39,24 @@ export class KnowledgeGraphService {
     let results = this.graph.nodes;
 
     if (types) {
-      results = results.filter(node => types.includes(node.type));
+      results = results.filter((node) => types.includes(node.type));
     }
 
     if (clusters) {
       const clusterNodeIds = new Set(
         this.graph.clusters
-          .filter(cluster => clusters.includes(cluster.id))
-          .flatMap(cluster => cluster.nodeIds)
+          .filter((cluster) => clusters.includes(cluster.id))
+          .flatMap((cluster) => cluster.nodeIds)
       );
-      results = results.filter(node => clusterNodeIds.has(node.id));
+      results = results.filter((node) => clusterNodeIds.has(node.id));
     }
 
     results = results
-      .filter(node => 
-        node.title.toLowerCase().includes(query.toLowerCase()) ||
-        node.description?.toLowerCase().includes(query.toLowerCase()) ||
-        node.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
+      .filter(
+        (node) =>
+          node.title.toLowerCase().includes(query.toLowerCase()) ||
+          node.description?.toLowerCase().includes(query.toLowerCase()) ||
+          node.tags.some((tag) => tag.toLowerCase().includes(query.toLowerCase()))
       )
       .sort((a, b) => b.weight - a.weight)
       .slice(0, limit);
@@ -83,7 +87,7 @@ export class KnowledgeGraphService {
     }
 
     const headers = 'id,type,title,description,tags,weight,relatedCount';
-    const rows = this.graph.nodes.map(node => 
+    const rows = this.graph.nodes.map((node) =>
       [
         node.id,
         node.type,
@@ -91,7 +95,7 @@ export class KnowledgeGraphService {
         `"${node.description?.replace(/"/g, '""') || ''}"`,
         `"${node.tags.join(', ')}"`,
         node.weight,
-        node.relatedCount
+        node.relatedCount,
       ].join(',')
     );
 
@@ -103,20 +107,21 @@ export class KnowledgeGraphService {
       return '';
     }
 
-    let graphml = '<?xml version="1.0" encoding="UTF-8"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns">';
+    let graphml =
+      '<?xml version="1.0" encoding="UTF-8"?><graphml xmlns="http://graphml.graphdrawing.org/xmlns">';
     graphml += '<key id="type" for="node" attr.name="type" attr.type="string"/>';
     graphml += '<key id="weight" for="node" attr.name="weight" attr.type="double"/>';
     graphml += '<key id="edgeType" for="edge" attr.name="type" attr.type="string"/>';
     graphml += '<graph id="G" edgedefault="directed">';
 
-    this.graph.nodes.forEach(node => {
+    this.graph.nodes.forEach((node) => {
       graphml += `<node id="${node.id}">`;
       graphml += `<data key="type">${node.type}</data>`;
       graphml += `<data key="weight">${node.weight}</data>`;
       graphml += '</node>';
     });
 
-    this.graph.edges.forEach(edge => {
+    this.graph.edges.forEach((edge) => {
       graphml += `<edge source="${edge.source}" target="${edge.target}">`;
       graphml += `<data key="edgeType">${edge.type}</data>`;
       graphml += '</edge>';
@@ -133,12 +138,12 @@ export class KnowledgeGraphService {
 
     const relatedNodeIds = new Set(
       this.graph.edges
-        .filter(edge => edge.source === nodeId || edge.target === nodeId)
-        .map(edge => edge.source === nodeId ? edge.target : edge.source)
+        .filter((edge) => edge.source === nodeId || edge.target === nodeId)
+        .map((edge) => (edge.source === nodeId ? edge.target : edge.source))
     );
 
     return this.graph.nodes
-      .filter(node => relatedNodeIds.has(node.id))
+      .filter((node) => relatedNodeIds.has(node.id))
       .sort((a, b) => b.weight - a.weight)
       .slice(0, limit);
   }
@@ -156,6 +161,6 @@ export class KnowledgeGraphService {
       throw new Error('Knowledge graph not built yet');
     }
 
-    return this.graph.nodes.find(node => node.id === id) || null;
+    return this.graph.nodes.find((node) => node.id === id) || null;
   }
 }

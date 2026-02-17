@@ -83,9 +83,7 @@ export class IntelligentSummaryGenerator implements ISummaryGenerator {
       });
     }
 
-    return keyPoints
-      .sort((a, b) => b.importance - a.importance)
-      .slice(0, maxPoints);
+    return keyPoints.sort((a, b) => b.importance - a.importance).slice(0, maxPoints);
   }
 
   formatSummary(summary: string, style: SummaryStyle): string {
@@ -134,9 +132,7 @@ Requirements:
 Generate a concise, informative summary:`;
 
     try {
-      const response = await this.llmService.complete([
-        { role: 'user', content: prompt },
-      ]);
+      const response = await this.llmService.complete([{ role: 'user', content: prompt }]);
       return response;
     } catch {
       return this.generateHeuristicSummary(content, keyPoints, config);

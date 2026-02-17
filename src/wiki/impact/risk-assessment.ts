@@ -61,7 +61,7 @@ export class RiskAssessmentService {
       });
     }
 
-    const highImpactCount = allImpacts.filter(item => item.impactLevel === 'high').length;
+    const highImpactCount = allImpacts.filter((item) => item.impactLevel === 'high').length;
     if (highImpactCount > 2) {
       factors.push({
         id: `factor-${Date.now()}-2`,
@@ -73,7 +73,7 @@ export class RiskAssessmentService {
       });
     }
 
-    const testImpacts = allImpacts.filter(item => item.type === 'test');
+    const testImpacts = allImpacts.filter((item) => item.type === 'test');
     if (testImpacts.length > 0) {
       factors.push({
         id: `factor-${Date.now()}-3`,
@@ -85,7 +85,7 @@ export class RiskAssessmentService {
       });
     }
 
-    const documentImpacts = allImpacts.filter(item => item.type === 'document');
+    const documentImpacts = allImpacts.filter((item) => item.type === 'document');
     if (documentImpacts.length > 0) {
       factors.push({
         id: `factor-${Date.now()}-4`,
@@ -97,7 +97,7 @@ export class RiskAssessmentService {
       });
     }
 
-    if (changeType === 'modified' && directImpacts.some(item => item.impactLevel === 'high')) {
+    if (changeType === 'modified' && directImpacts.some((item) => item.impactLevel === 'high')) {
       factors.push({
         id: `factor-${Date.now()}-5`,
         type: 'breaking-change',
@@ -112,7 +112,7 @@ export class RiskAssessmentService {
   }
 
   generateMitigation(factors: RiskFactor[]): string[] {
-    return factors.map(factor => factor.mitigation);
+    return factors.map((factor) => factor.mitigation);
   }
 
   assessOverallRisk(impacts: ImpactItem[]): RiskLevel {
@@ -164,9 +164,9 @@ export class RiskAssessmentService {
     changeType: 'added' | 'modified' | 'removed',
     factors: RiskFactor[]
   ): 'immediate' | 'short-term' | 'long-term' {
-    if (changeType === 'removed' || factors.some(f => f.severity === 'high')) {
+    if (changeType === 'removed' || factors.some((f) => f.severity === 'high')) {
       return 'immediate';
-    } else if (factors.some(f => f.severity === 'medium')) {
+    } else if (factors.some((f) => f.severity === 'medium')) {
       return 'short-term';
     } else {
       return 'long-term';

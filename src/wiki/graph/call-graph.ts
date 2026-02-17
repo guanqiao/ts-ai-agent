@@ -42,8 +42,8 @@ export class CallGraphGenerator {
     for (const file of parsedFiles) {
       if (!this.shouldIncludeFile(file.path)) continue;
 
-      const functions = file.symbols.filter(s => 
-        s.kind === SymbolKind.Function || s.kind === SymbolKind.Method
+      const functions = file.symbols.filter(
+        (s) => s.kind === SymbolKind.Function || s.kind === SymbolKind.Method
       );
 
       for (const func of functions) {
@@ -69,7 +69,7 @@ export class CallGraphGenerator {
 
       for (const relation of callRelations) {
         const sourceId = this.generateNodeId('func', relation.callerFile, relation.caller);
-        const targetId = relation.calleeFile 
+        const targetId = relation.calleeFile
           ? this.generateNodeId('func', relation.calleeFile, relation.callee)
           : this.generateNodeId('func', 'external', relation.callee);
 
@@ -82,9 +82,9 @@ export class CallGraphGenerator {
           existing.count++;
           if (relation.line) existing.lines.push(relation.line);
         } else {
-          edgeMap.set(edgeKey, { 
-            count: 1, 
-            lines: relation.line ? [relation.line] : [] 
+          edgeMap.set(edgeKey, {
+            count: 1,
+            lines: relation.line ? [relation.line] : [],
           });
         }
       }
@@ -92,8 +92,8 @@ export class CallGraphGenerator {
 
     for (const [edgeKey, data] of edgeMap) {
       const [source, target] = edgeKey.split('->');
-      
-      const targetExists = nodes.find(n => n.id === target);
+
+      const targetExists = nodes.find((n) => n.id === target);
       if (!targetExists && this.options.includeExternal) {
         const calleeName = target.replace('func-external-', '').replace(/_/g, '.');
         nodes.push({
@@ -108,7 +108,7 @@ export class CallGraphGenerator {
         });
       }
 
-      if (nodes.find(n => n.id === source)) {
+      if (nodes.find((n) => n.id === source)) {
         edges.push({
           id: this.generateEdgeId(),
           source,
@@ -141,10 +141,7 @@ export class CallGraphGenerator {
     };
   }
 
-  private extractCallRelations(
-    file: ParsedFile,
-    allFiles: ParsedFile[]
-  ): CallRelation[] {
+  private extractCallRelations(file: ParsedFile, allFiles: ParsedFile[]): CallRelation[] {
     const relations: CallRelation[] = [];
     const symbols = file.symbols;
 
@@ -167,19 +164,16 @@ export class CallGraphGenerator {
   ): CallRelation[] {
     const relations: CallRelation[] = [];
     const content = symbol.signature || '';
-    
-    const callPatterns = [
-      /(\w+)\s*\(/g,
-      /(\w+)\.(\w+)\s*\(/g,
-    ];
+
+    const callPatterns = [/(\w+)\s*\(/g, /(\w+)\.(\w+)\s*\(/g];
 
     for (const pattern of callPatterns) {
       let match;
       while ((match = pattern.exec(content)) !== null) {
         const calleeName = match[2] || match[1];
-        
+
         if (this.isBuiltinFunction(calleeName)) continue;
-        
+
         const calleeFile = this.findFunctionFile(calleeName, file, allFiles);
 
         relations.push({
@@ -197,15 +191,48 @@ export class CallGraphGenerator {
 
   private isBuiltinFunction(name: string): boolean {
     const builtins = [
-      'console', 'log', 'error', 'warn', 'info',
-      'setTimeout', 'setInterval', 'clearTimeout', 'clearInterval',
-      'parseInt', 'parseFloat', 'isNaN', 'isFinite',
-      'JSON', 'parse', 'stringify',
-      'Object', 'keys', 'values', 'entries', 'assign',
-      'Array', 'from', 'isArray', 'map', 'filter', 'reduce', 'forEach', 'find', 'some', 'every',
-      'String', 'Number', 'Boolean',
-      'Promise', 'resolve', 'reject', 'then', 'catch',
-      'require', 'exports', 'module',
+      'console',
+      'log',
+      'error',
+      'warn',
+      'info',
+      'setTimeout',
+      'setInterval',
+      'clearTimeout',
+      'clearInterval',
+      'parseInt',
+      'parseFloat',
+      'isNaN',
+      'isFinite',
+      'JSON',
+      'parse',
+      'stringify',
+      'Object',
+      'keys',
+      'values',
+      'entries',
+      'assign',
+      'Array',
+      'from',
+      'isArray',
+      'map',
+      'filter',
+      'reduce',
+      'forEach',
+      'find',
+      'some',
+      'every',
+      'String',
+      'Number',
+      'Boolean',
+      'Promise',
+      'resolve',
+      'reject',
+      'then',
+      'catch',
+      'require',
+      'exports',
+      'module',
     ];
     return builtins.includes(name);
   }
@@ -216,18 +243,17 @@ export class CallGraphGenerator {
     allFiles: ParsedFile[]
   ): string | undefined {
     const localFunc = currentFile.symbols.find(
-      s => s.name === funcName && 
-      (s.kind === SymbolKind.Function || s.kind === SymbolKind.Method)
+      (s) => s.name === funcName && (s.kind === SymbolKind.Function || s.kind === SymbolKind.Method)
     );
     if (localFunc) return currentFile.path;
 
     for (const imp of currentFile.imports || []) {
       const importedSymbols = imp.specifiers || [];
-      if (importedSymbols.some(s => s === funcName)) {
+      if (importedSymbols.some((s) => s === funcName)) {
         const resolvedPath = this.resolveImportPath(imp.source, currentFile.path, allFiles);
         if (resolvedPath) {
-          const targetFile = allFiles.find(f => f.path === resolvedPath);
-          if (targetFile?.symbols.some(s => s.name === funcName)) {
+          const targetFile = allFiles.find((f) => f.path === resolvedPath);
+          if (targetFile?.symbols.some((s) => s.name === funcName)) {
             return resolvedPath;
           }
         }
@@ -236,9 +262,10 @@ export class CallGraphGenerator {
 
     for (const file of allFiles) {
       const exportedFunc = file.symbols.find(
-        s => s.name === funcName && 
-        (s.kind === SymbolKind.Function || s.kind === SymbolKind.Method) &&
-        s.modifiers?.includes('export')
+        (s) =>
+          s.name === funcName &&
+          (s.kind === SymbolKind.Function || s.kind === SymbolKind.Method) &&
+          s.modifiers?.includes('export')
       );
       if (exportedFunc) return file.path;
     }
@@ -254,11 +281,11 @@ export class CallGraphGenerator {
     if (importSource.startsWith('.')) {
       const dir = path.dirname(fromPath);
       const resolved = path.resolve(dir, importSource);
-      
+
       const extensions = ['.ts', '.tsx', '.js', '.jsx'];
       for (const ext of extensions) {
         const withExt = resolved + ext;
-        if (allFiles.find(f => f.path === withExt)) {
+        if (allFiles.find((f) => f.path === withExt)) {
           return withExt;
         }
       }
@@ -277,10 +304,7 @@ export class CallGraphGenerator {
 
   private matchesPattern(value: string, pattern: string): boolean {
     const regex = new RegExp(
-      pattern
-        .replace(/\*\*/g, '.*')
-        .replace(/\*/g, '[^/]*')
-        .replace(/\?/g, '.')
+      pattern.replace(/\*\*/g, '.*').replace(/\*/g, '[^/]*').replace(/\?/g, '.')
     );
     return regex.test(value);
   }
@@ -288,12 +312,12 @@ export class CallGraphGenerator {
   private getModuleName(filePath: string): string {
     const parts = filePath.split(/[/\\]/);
     if (parts.length <= 1) return 'root';
-    
+
     const srcIndex = parts.indexOf('src');
     if (srcIndex >= 0 && srcIndex < parts.length - 2) {
       return parts.slice(srcIndex + 1, srcIndex + 2)[0];
     }
-    
+
     return parts[parts.length - 2] || 'root';
   }
 
@@ -328,7 +352,7 @@ export class CallGraphGenerator {
 
   private detectCycles(nodes: GraphNode[], edges: GraphEdge[]): string[][] {
     const adjacencyList = new Map<string, string[]>();
-    const nodeIds = new Set(nodes.map(n => n.id));
+    const nodeIds = new Set(nodes.map((n) => n.id));
 
     for (const node of nodes) {
       adjacencyList.set(node.id, []);
@@ -383,8 +407,8 @@ export class CallGraphGenerator {
       for (let i = 0; i < cycle.length - 1; i++) {
         const source = cycle[i];
         const target = cycle[i + 1];
-        
-        const edge = edges.find(e => e.source === source && e.target === target);
+
+        const edge = edges.find((e) => e.source === source && e.target === target);
         if (edge && edge.style) {
           edge.style.color = this.options.theme.highlightColor;
           edge.style.width = 2;
@@ -413,7 +437,7 @@ export class CallGraphGenerator {
     const hash = moduleName.split('').reduce((acc, char) => {
       return char.charCodeAt(0) + ((acc << 5) - acc);
     }, 0);
-    
+
     const hue = Math.abs(hash % 360);
     return `hsl(${hue}, 70%, 95%)`;
   }
@@ -448,15 +472,15 @@ export class CallGraphGenerator {
     const calcDepth = (nodeId: string, visited: Set<string>): number => {
       if (depthMap.has(nodeId)) return depthMap.get(nodeId)!;
       if (visited.has(nodeId)) return 0;
-      
+
       visited.add(nodeId);
       const neighbors = adjacencyList.get(nodeId) || [];
       let depth = 0;
-      
+
       for (const neighbor of neighbors) {
         depth = Math.max(depth, calcDepth(neighbor, visited) + 1);
       }
-      
+
       visited.delete(nodeId);
       depthMap.set(nodeId, depth);
       return depth;

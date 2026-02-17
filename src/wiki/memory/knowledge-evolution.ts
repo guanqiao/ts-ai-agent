@@ -242,10 +242,7 @@ export class KnowledgeEvolution {
       const entry = result.entry;
 
       if (entry.accessCount >= options.minAccessCount) {
-        const newRelevance = Math.min(
-          entry.metadata.relevance * options.boostFactor,
-          1
-        );
+        const newRelevance = Math.min(entry.metadata.relevance * options.boostFactor, 1);
 
         await this.memoryService.update(entry.id, {
           metadata: {

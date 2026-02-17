@@ -1,4 +1,4 @@
-import { IServiceToken, ServiceToken, DIContainer, ServiceLifetime, ServiceLocator } from '@core/di';
+import { ServiceToken, DIContainer, ServiceLifetime, ServiceLocator } from '@core/di';
 import { WikiStorage } from '../wiki-storage';
 import { WikiHistory } from '../wiki-history';
 import { WikiAudit } from '../wiki-audit';
@@ -28,7 +28,9 @@ export const WikiServiceTokens = {
   EditorService: ServiceToken.create<WikiEditorService>('WikiEditorService'),
   Preview: ServiceToken.create<any>('WikiPreview'),
   Templates: ServiceToken.create<any>('WikiTemplates'),
-  DiagramGenerator: ServiceToken.create<ArchitectureDiagramGenerator>('ArchitectureDiagramGenerator'),
+  DiagramGenerator: ServiceToken.create<ArchitectureDiagramGenerator>(
+    'ArchitectureDiagramGenerator'
+  ),
   DiagramExporter: ServiceToken.create<DiagramExporter>('DiagramExporter'),
   CollaborationService: ServiceToken.create<WikiCollaborationService>('WikiCollaborationService'),
   PermissionService: ServiceToken.create<WikiPermissionService>('WikiPermissionService'),
@@ -160,7 +162,10 @@ export class WikiServiceFactory {
     });
   }
 
-  static async createWikiManager(container: DIContainer, projectPath: string): Promise<WikiManager> {
+  static async createWikiManager(
+    container: DIContainer,
+    projectPath: string
+  ): Promise<WikiManager> {
     const storage = container.resolve(WikiServiceTokens.Storage);
     const history = container.resolve(WikiServiceTokens.History);
     const audit = container.resolve(WikiServiceTokens.Audit);
@@ -185,29 +190,32 @@ export class WikiServiceFactory {
     const llmService = container.tryResolve(WikiServiceTokens.LLMService);
 
     const manager = new WikiManager();
-    await manager.injectDependencies({
-      storage,
-      history,
-      audit,
-      autoSync,
-      syncMonitor,
-      sharingService,
-      graphGenerator,
-      editorService,
-      diagramGenerator,
-      diagramExporter,
-      collaborationService,
-      permissionService,
-      lockService,
-      adrService,
-      adrExtractor,
-      adrTemplates,
-      knowledgeGraphService,
-      changeImpactAnalyzer,
-      riskAssessmentService,
-      suggestionGenerator,
-      llmService,
-    }, projectPath);
+    await manager.injectDependencies(
+      {
+        storage,
+        history,
+        audit,
+        autoSync,
+        syncMonitor,
+        sharingService,
+        graphGenerator,
+        editorService,
+        diagramGenerator,
+        diagramExporter,
+        collaborationService,
+        permissionService,
+        lockService,
+        adrService,
+        adrExtractor,
+        adrTemplates,
+        knowledgeGraphService,
+        changeImpactAnalyzer,
+        riskAssessmentService,
+        suggestionGenerator,
+        llmService,
+      },
+      projectPath
+    );
 
     return manager;
   }

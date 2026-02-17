@@ -65,7 +65,9 @@ export interface MemoryContext {
 }
 
 export interface IMemoryService {
-  store(entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'updatedAt' | 'accessCount'>): Promise<MemoryEntry>;
+  store(
+    entry: Omit<MemoryEntry, 'id' | 'createdAt' | 'updatedAt' | 'accessCount'>
+  ): Promise<MemoryEntry>;
   query(query: MemoryQuery): Promise<MemoryResult[]>;
   invalidate(filter: Partial<MemoryQuery>): Promise<number>;
   getRelevant(context: string, limit?: number): Promise<MemoryEntry[]>;
@@ -96,7 +98,11 @@ export interface CacheStats {
 export interface IAgentMemoryBridge {
   provideContext(query: string, maxTokens?: number): Promise<MemoryContext>;
   enrichPrompt(prompt: string, context?: MemoryContext): Promise<string>;
-  storeKnowledge(content: string, type: MemoryEntryType, metadata?: Partial<MemoryMetadata>): Promise<MemoryEntry>;
+  storeKnowledge(
+    content: string,
+    type: MemoryEntryType,
+    metadata?: Partial<MemoryMetadata>
+  ): Promise<MemoryEntry>;
   getRelevantSymbols(symbolName: string): Promise<MemoryEntry[]>;
   getRelevantFiles(filePath: string): Promise<MemoryEntry[]>;
 }

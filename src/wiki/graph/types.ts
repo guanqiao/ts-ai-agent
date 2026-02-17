@@ -1,18 +1,14 @@
 import { ParsedFile } from '../../types';
 import { ArchitectureReport } from '../../architecture/types';
 
-export type GraphType = 
-  | 'dependency' 
-  | 'reference' 
-  | 'call-graph' 
+export type GraphType =
+  | 'dependency'
+  | 'reference'
+  | 'call-graph'
   | 'inheritance'
   | 'implementation';
 
-export type GraphFormat = 
-  | 'mermaid' 
-  | 'svg' 
-  | 'json'
-  | 'dot';
+export type GraphFormat = 'mermaid' | 'svg' | 'json' | 'dot';
 
 export interface GraphOptions {
   maxDepth: number;
@@ -55,7 +51,7 @@ export interface GraphNode {
   style?: NodeStyle;
 }
 
-export type NodeType = 
+export type NodeType =
   | 'module'
   | 'file'
   | 'class'
@@ -85,7 +81,7 @@ export interface GraphEdge {
   style?: EdgeStyle;
 }
 
-export type EdgeType = 
+export type EdgeType =
   | 'imports'
   | 'extends'
   | 'implements'
@@ -126,26 +122,26 @@ export interface GraphMetadata {
 
 export interface IWikiGraphGenerator {
   generateDependencyGraph(
-    parsedFiles: ParsedFile[], 
+    parsedFiles: ParsedFile[],
     architecture?: ArchitectureReport
   ): Promise<Graph>;
-  
+
   generateCallGraph(parsedFiles: ParsedFile[]): Promise<Graph>;
-  
+
   generateInheritanceGraph(parsedFiles: ParsedFile[]): Promise<Graph>;
-  
+
   generateImplementationGraph(parsedFiles: ParsedFile[]): Promise<Graph>;
-  
+
   exportToMermaid(graph: Graph, options?: Partial<GraphOptions>): string;
-  
+
   exportToSVG(graph: Graph, options?: Partial<GraphOptions>): string;
-  
+
   exportToJSON(graph: Graph): string;
-  
+
   exportToDot(graph: Graph, options?: Partial<GraphOptions>): string;
-  
+
   detectCycles(graph: Graph): string[][];
-  
+
   filterGraph(graph: Graph, filter: GraphFilter): Graph;
 }
 

@@ -22,7 +22,11 @@ export class ChangeImpactAnalyzer {
     const directImpacts = await this.analyzeDirectImpact(filePath, changeType);
     const indirectImpacts = await this.analyzeIndirectImpact(directImpacts);
     const impactChains = this.traceImpactChain(filePath, directImpacts, indirectImpacts);
-    const riskAssessment = this.riskAssessmentService.assessRisk(directImpacts, indirectImpacts, changeType);
+    const riskAssessment = this.riskAssessmentService.assessRisk(
+      directImpacts,
+      indirectImpacts,
+      changeType
+    );
     const suggestedActions = this.suggestionGenerator.generateSuggestions(
       directImpacts,
       indirectImpacts,
@@ -98,7 +102,7 @@ export class ChangeImpactAnalyzer {
 
     for (const directImpact of directImpacts) {
       const chainItems = [directImpact];
-      
+
       for (const indirectImpact of indirectImpacts) {
         if (indirectImpact.affectedBy.includes(directImpact.path)) {
           chainItems.push(indirectImpact);
@@ -122,10 +126,12 @@ export class ChangeImpactAnalyzer {
 
   private getFileType(filePath: string): ImpactItem['type'] {
     const extension = path.extname(filePath).toLowerCase();
-    
+
     if (['.ts', '.js', '.tsx', '.jsx'].includes(extension)) {
       return 'file';
-    } else if (['.test.ts', '.test.js', '.spec.ts', '.spec.js'].some(suffix => filePath.endsWith(suffix))) {
+    } else if (
+      ['.test.ts', '.test.js', '.spec.ts', '.spec.js'].some((suffix) => filePath.endsWith(suffix))
+    ) {
       return 'test';
     } else if (['.md', '.rst', '.txt'].includes(extension)) {
       return 'document';
@@ -134,7 +140,10 @@ export class ChangeImpactAnalyzer {
     }
   }
 
-  private assessImpactLevel(filePath: string, changeType: 'added' | 'modified' | 'removed'): ImpactItem['impactLevel'] {
+  private assessImpactLevel(
+    filePath: string,
+    changeType: 'added' | 'modified' | 'removed'
+  ): ImpactItem['impactLevel'] {
     const fileName = path.basename(filePath);
     const extension = path.extname(filePath).toLowerCase();
 
@@ -173,8 +182,8 @@ export class ChangeImpactAnalyzer {
   }
 
   private calculateChainSeverity(items: ImpactItem[]): ImpactChain['severity'] {
-    const highImpactCount = items.filter(item => item.impactLevel === 'high').length;
-    const mediumImpactCount = items.filter(item => item.impactLevel === 'medium').length;
+    const highImpactCount = items.filter((item) => item.impactLevel === 'high').length;
+    const mediumImpactCount = items.filter((item) => item.impactLevel === 'medium').length;
 
     if (highImpactCount > 0) {
       return 'high';
@@ -191,8 +200,9 @@ export class ChangeImpactAnalyzer {
     riskAssessment: RiskAssessment
   ): string {
     const totalImpacts = directImpacts.length + indirectImpacts.length;
-    const highImpactCount = [...directImpacts, ...indirectImpacts]
-      .filter(item => item.impactLevel === 'high').length;
+    const highImpactCount = [...directImpacts, ...indirectImpacts].filter(
+      (item) => item.impactLevel === 'high'
+    ).length;
 
     return `变更影响分析: 共影响 ${totalImpacts} 个项目，其中高影响 ${highImpactCount} 个。总体风险等级: ${riskAssessment.overallRisk}，风险评分: ${riskAssessment.riskScore}。建议: ${riskAssessment.recommendation}`;
   }

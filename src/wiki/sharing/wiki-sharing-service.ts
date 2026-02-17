@@ -35,14 +35,14 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
 
   async initialize(config: WikiSharingConfig): Promise<void> {
     this.config = { ...DEFAULT_SHARING_CONFIG, ...config };
-    
+
     const shareDir = this.getShareDir();
     if (!fs.existsSync(shareDir)) {
       fs.mkdirSync(shareDir, { recursive: true });
     }
 
     await this.loadManifest();
-    
+
     this.emit('initialized', { config: this.config });
   }
 
@@ -64,7 +64,7 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
 
     try {
       const content = await this.prepareShareableContent();
-      
+
       await this.writeShareableContent(content, errors);
       filesShared = content.manifest.files.length;
 
@@ -88,7 +88,7 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
         message: error instanceof Error ? error.message : 'Unknown error',
       };
       errors.push(shareError);
-      
+
       return this.createShareResult(false, shareError.message, filesShared, errors);
     }
   }
@@ -100,14 +100,20 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
 
     const conflicts = await this.detectConflicts();
     if (conflicts.length > 0) {
-      conflicts.forEach(c => this.conflicts.set(c.id, c));
+      conflicts.forEach((c) => this.conflicts.set(c.id, c));
       return this.createSyncResult(
         false,
         `Sync blocked by ${conflicts.length} conflicts`,
         'both',
         0,
         conflicts,
-        [{ code: 'CONFLICTS_DETECTED', message: 'Please resolve conflicts first', retryable: false }]
+        [
+          {
+            code: 'CONFLICTS_DETECTED',
+            message: 'Please resolve conflicts first',
+            retryable: false,
+          },
+        ]
       );
     }
 
@@ -142,7 +148,7 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
         retryable: true,
       };
       errors.push(syncError);
-      
+
       return this.createSyncResult(false, syncError.message, 'both', filesSynced, [], errors);
     }
   }
@@ -150,7 +156,7 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
   async getStatus(): Promise<ShareStatus> {
     const manifest = await this.loadManifest();
     const isShared = manifest !== null && manifest.files.length > 0;
-    
+
     const remoteStatus = await this.getRemoteStatus();
     const conflicts = Array.from(this.conflicts.values());
 
@@ -175,7 +181,7 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
     conflict.resolved = true;
 
     await this.applyConflictResolution(conflict);
-    
+
     this.conflicts.delete(conflictId);
     this.emit('conflict-resolved', { conflictId, resolution });
   }
@@ -218,7 +224,7 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
 
     try {
       const gitResult = await this.executeGitCommand(['pull', '--no-edit']);
-      
+
       if (gitResult.success) {
         filesSynced = await this.countChangedFiles();
         await this.loadManifest();
@@ -271,7 +277,7 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
       }
 
       const gitResult = await this.executeGitCommand(['push']);
-      
+
       if (gitResult.success) {
         filesSynced = await this.countChangedFiles();
       } else {
@@ -311,11 +317,11 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
 
     try {
       const statusResult = await this.executeGitCommand(['status', '--porcelain']);
-      
+
       if (statusResult.output.includes('UU') || statusResult.output.includes('AA')) {
-        const lines = statusResult.output.split('\n').filter(line => 
-          line.includes('UU') || line.includes('AA')
-        );
+        const lines = statusResult.output
+          .split('\n')
+          .filter((line) => line.includes('UU') || line.includes('AA'));
 
         for (const line of lines) {
           const filePath = line.substring(3).trim();
@@ -373,7 +379,7 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
     for (const page of pages) {
       const content = this.serializePage(page);
       const hash = this.computeHash(content);
-      
+
       entries.push({
         path: `${page.slug}.md`,
         type: 'page',
@@ -462,9 +468,9 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
   private serializePage(page: WikiPage): string {
     let content = `# ${page.title}\n\n`;
     content += `> Category: ${page.metadata.category} | Version: ${page.version} | Updated: ${page.updatedAt.toISOString()}\n\n`;
-    
+
     if (page.metadata.tags.length > 0) {
-      content += `**Tags:** ${page.metadata.tags.map(t => `\`${t}\``).join(', ')}\n\n`;
+      content += `**Tags:** ${page.metadata.tags.map((t) => `\`${t}\``).join(', ')}\n\n`;
     }
 
     content += page.content;
@@ -474,14 +480,14 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
 
   private async updateManifest(manifest: ShareManifest): Promise<void> {
     this.shareManifest = manifest;
-    
+
     const manifestPath = path.join(this.getShareDir(), 'manifest.json');
     fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
   }
 
   private async loadManifest(): Promise<ShareManifest | null> {
     const manifestPath = path.join(this.getShareDir(), 'manifest.json');
-    
+
     if (fs.existsSync(manifestPath)) {
       try {
         const content = fs.readFileSync(manifestPath, 'utf-8');
@@ -491,7 +497,7 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
         return null;
       }
     }
-    
+
     return null;
   }
 
@@ -500,10 +506,11 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
     const relativePath = path.relative(this.projectPath, shareDir);
 
     await this.executeGitCommand(['add', relativePath]);
-    
-    const message = this.config!.commitMessageTemplate
-      .replace('{date}', new Date().toISOString().split('T')[0])
-      .replace('{count}', String(this.wikiDocument?.pages.length || 0));
+
+    const message = this.config!.commitMessageTemplate.replace(
+      '{date}',
+      new Date().toISOString().split('T')[0]
+    ).replace('{count}', String(this.wikiDocument?.pages.length || 0));
 
     await this.executeGitCommand(['commit', '-m', message, '--no-verify']);
   }
@@ -512,15 +519,19 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
     return new Promise((resolve) => {
       const { spawn } = require('child_process');
       const git = spawn('git', args, { cwd: this.projectPath });
-      
+
       let output = '';
-      git.stdout.on('data', (data: Buffer) => { output += data.toString(); });
-      git.stderr.on('data', (data: Buffer) => { output += data.toString(); });
-      
+      git.stdout.on('data', (data: Buffer) => {
+        output += data.toString();
+      });
+      git.stderr.on('data', (data: Buffer) => {
+        output += data.toString();
+      });
+
       git.on('close', (code: number) => {
         resolve({ success: code === 0, output });
       });
-      
+
       git.on('error', () => {
         resolve({ success: false, output: 'Git command failed' });
       });
@@ -535,10 +546,14 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
       await this.executeGitCommand(['fetch']);
 
       const aheadResult = await this.executeGitCommand([
-        'rev-list', '--count', `origin/${branch}..HEAD`
+        'rev-list',
+        '--count',
+        `origin/${branch}..HEAD`,
       ]);
       const behindResult = await this.executeGitCommand([
-        'rev-list', '--count', `HEAD..origin/${branch}`
+        'rev-list',
+        '--count',
+        `HEAD..origin/${branch}`,
       ]);
 
       return {
@@ -565,9 +580,9 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
     }
 
     for (const page of this.wikiDocument.pages) {
-      const entry = this.shareManifest.files.find(f => f.path === `${page.slug}.md`);
+      const entry = this.shareManifest.files.find((f) => f.path === `${page.slug}.md`);
       if (!entry) return true;
-      
+
       const currentHash = this.computeHash(this.serializePage(page));
       if (entry.hash !== currentHash) return true;
     }
@@ -578,7 +593,7 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
   private async countChangedFiles(): Promise<number> {
     try {
       const result = await this.executeGitCommand(['diff', '--name-only', 'HEAD~1']);
-      return result.output.split('\n').filter(line => line.trim()).length;
+      return result.output.split('\n').filter((line) => line.trim()).length;
     } catch {
       return 0;
     }
@@ -586,13 +601,13 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
 
   private async createConflictFromFile(filePath: string): Promise<Conflict | null> {
     const fullPath = path.join(this.projectPath, filePath);
-    
+
     if (!fs.existsSync(fullPath)) {
       return null;
     }
 
     const content = fs.readFileSync(fullPath, 'utf-8');
-    
+
     return {
       id: this.computeHash(filePath),
       type: 'content',
@@ -629,7 +644,7 @@ export class WikiSharingService extends EventEmitter implements IWikiSharingServ
     if (!conflict.resolution) return;
 
     const fullPath = path.join(this.projectPath, conflict.filePath);
-    
+
     switch (conflict.resolution.strategy) {
       case 'keep-local':
         fs.writeFileSync(fullPath, conflict.localVersion.content, 'utf-8');

@@ -1,9 +1,4 @@
-import {
-  FileLocation,
-  SymbolLocation,
-  ILocationIndex,
-  LocationIndexEntry,
-} from './types';
+import { FileLocation, SymbolLocation, ILocationIndex, LocationIndexEntry } from './types';
 
 export class LocationIndex implements ILocationIndex {
   private entries: Map<string, LocationIndexEntry> = new Map();
@@ -11,10 +6,7 @@ export class LocationIndex implements ILocationIndex {
   private pageIndex: Map<string, Set<string>> = new Map();
   private symbolIndex: Map<string, Set<string>> = new Map();
 
-  async indexLocation(
-    location: FileLocation | SymbolLocation,
-    linkId: string
-  ): Promise<void> {
+  async indexLocation(location: FileLocation | SymbolLocation, linkId: string): Promise<void> {
     const entry = this.createEntry(location, linkId);
     this.entries.set(linkId, entry);
 
@@ -42,7 +34,10 @@ export class LocationIndex implements ILocationIndex {
     this.entries.delete(linkId);
   }
 
-  async queryByLocation(filePath: string, range?: { start: { line: number; column: number }; end: { line: number; column: number } }): Promise<string[]> {
+  async queryByLocation(
+    filePath: string,
+    range?: { start: { line: number; column: number }; end: { line: number; column: number } }
+  ): Promise<string[]> {
     const normalizedPath = this.normalizePath(filePath);
     const linkIds = this.fileIndex.get(normalizedPath);
 
@@ -105,10 +100,7 @@ export class LocationIndex implements ILocationIndex {
     };
   }
 
-  private createEntry(
-    location: FileLocation | SymbolLocation,
-    linkId: string
-  ): LocationIndexEntry {
+  private createEntry(location: FileLocation | SymbolLocation, linkId: string): LocationIndexEntry {
     return {
       linkId,
       filePath: location.filePath,

@@ -1,10 +1,5 @@
 import { ParsedFile, SymbolKind } from '../../types';
-import {
-  SymbolLocation,
-  SymbolLocationKind,
-  ISymbolTracker,
-  Range,
-} from './types';
+import { SymbolLocation, SymbolLocationKind, ISymbolTracker, Range } from './types';
 
 export class SymbolTracker implements ISymbolTracker {
   private symbolTable: Map<string, SymbolLocation[]> = new Map();
@@ -42,12 +37,15 @@ export class SymbolTracker implements ISymbolTracker {
       return null;
     }
 
-    return locations.find((loc) =>
-      loc.kind === 'class' ||
-      loc.kind === 'interface' ||
-      loc.kind === 'function' ||
-      loc.kind === 'type'
-    ) || locations[0];
+    return (
+      locations.find(
+        (loc) =>
+          loc.kind === 'class' ||
+          loc.kind === 'interface' ||
+          loc.kind === 'function' ||
+          loc.kind === 'type'
+      ) || locations[0]
+    );
   }
 
   async getReferences(symbolName: string): Promise<SymbolLocation[]> {
@@ -61,9 +59,9 @@ export class SymbolTracker implements ISymbolTracker {
       return locations;
     }
 
-    return locations.filter((loc) =>
-      loc.filePath !== definition.filePath ||
-      !this.rangesEqual(loc.range, definition.range)
+    return locations.filter(
+      (loc) =>
+        loc.filePath !== definition.filePath || !this.rangesEqual(loc.range, definition.range)
     );
   }
 

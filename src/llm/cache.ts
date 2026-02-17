@@ -33,7 +33,7 @@ export class LLMCache<T = string> {
 
   constructor(config: Partial<CacheConfig> = {}) {
     this.config = { ...DEFAULT_CACHE_CONFIG, ...config };
-    
+
     if (this.config.persistToDisk && this.config.cacheDir) {
       this.cacheFile = path.join(this.config.cacheDir, 'llm-cache.json');
       this.loadFromDisk();
@@ -215,12 +215,12 @@ export class LLMCache<T = string> {
     try {
       const data = fs.readFileSync(this.cacheFile, 'utf-8');
       const entries = JSON.parse(data) as CacheEntry<T>[];
-      
+
       const now = new Date();
       for (const entry of entries) {
         entry.createdAt = new Date(entry.createdAt);
         entry.expiresAt = new Date(entry.expiresAt);
-        
+
         if (entry.expiresAt > now) {
           this.cache.set(entry.key, entry);
         }

@@ -12,6 +12,7 @@ export { WikiMemory } from './wiki-memory';
 export { WikiPromptEnhancer } from './wiki-prompt-enhancer';
 export { WikiProgressMonitor, createProgressMonitor } from './wiki-progress-monitor';
 export type { IWikiProgressMonitor } from './wiki-progress-monitor';
+export { WikiProgressPersistence, createProgressPersistence } from './wiki-progress-persistence';
 export * from './sharing';
 export * from './graph';
 export * from './editor';

@@ -1,10 +1,6 @@
 import { ParsedFile, SymbolKind } from '../../types';
 import { LLMService } from '../../llm';
-import {
-  DocumentSection,
-  SectionType,
-  SectionPriority,
-} from './types';
+import { DocumentSection, SectionType, SectionPriority } from './types';
 
 export interface SectionRecommendation {
   section: DocumentSection;
@@ -236,9 +232,7 @@ Recommend additional sections that would be valuable. Return a JSON array of obj
 
 Only recommend sections that are truly missing and valuable.`;
 
-      const response = await this.llmService.complete([
-        { role: 'user', content: prompt },
-      ]);
+      const response = await this.llmService.complete([{ role: 'user', content: prompt }]);
 
       return this.parseAIResponse(response);
     } catch {

@@ -10,12 +10,7 @@ export type WikiPermission =
   | 'manage_contributors'
   | 'manage_permissions';
 
-export type WikiRole =
-  | 'owner'
-  | 'admin'
-  | 'editor'
-  | 'viewer'
-  | 'contributor';
+export type WikiRole = 'owner' | 'admin' | 'editor' | 'viewer' | 'contributor';
 
 export interface WikiContributor {
   id: string;
@@ -71,14 +66,7 @@ export const ROLE_PERMISSIONS: Record<WikiRole, WikiPermission[]> = {
     'manage_contributors',
     'manage_permissions',
   ],
-  admin: [
-    'read',
-    'write',
-    'delete',
-    'share',
-    'export',
-    'manage_contributors',
-  ],
+  admin: ['read', 'write', 'delete', 'share', 'export', 'manage_contributors'],
   editor: ['read', 'write', 'export'],
   contributor: ['read', 'write'],
   viewer: ['read'],
@@ -147,12 +135,17 @@ export const DEFAULT_LOCK_CONFIG: LockConfig = {
 
 export interface IWikiCollaborationService {
   initialize(): Promise<void>;
-  addContributor(contributor: Omit<WikiContributor, 'id' | 'joinedAt' | 'lastActiveAt' | 'contributionCount'>): Promise<WikiContributor>;
+  addContributor(
+    contributor: Omit<WikiContributor, 'id' | 'joinedAt' | 'lastActiveAt' | 'contributionCount'>
+  ): Promise<WikiContributor>;
   removeContributor(contributorId: string): Promise<boolean>;
   getContributor(contributorId: string): Promise<WikiContributor | null>;
   getContributors(): Promise<WikiContributor[]>;
   updateContributorRole(contributorId: string, role: WikiRole): Promise<WikiContributor>;
-  updateContributorPermissions(contributorId: string, permissions: WikiPermission[]): Promise<WikiContributor>;
+  updateContributorPermissions(
+    contributorId: string,
+    permissions: WikiPermission[]
+  ): Promise<WikiContributor>;
   saveUserConfig(config: WikiUserConfig): Promise<void>;
   loadUserConfig(userId: string): Promise<WikiUserConfig | null>;
 }
@@ -164,8 +157,14 @@ export interface IWikiPermission {
   assignRole(pageId: string, userId: string, role: WikiRole): Promise<void>;
   getRole(pageId: string, userId: string): Promise<WikiRole>;
   getRolePermissions(role: WikiRole): WikiPermission[];
-  requirePermission(permission: WikiPermission): (userId: string, pageId?: string) => Promise<boolean>;
-  filterByPermission(userId: string, pages: WikiPage[], permission: WikiPermission): Promise<WikiPage[]>;
+  requirePermission(
+    permission: WikiPermission
+  ): (userId: string, pageId?: string) => Promise<boolean>;
+  filterByPermission(
+    userId: string,
+    pages: WikiPage[],
+    permission: WikiPermission
+  ): Promise<WikiPage[]>;
 }
 
 export interface IWikiLock {

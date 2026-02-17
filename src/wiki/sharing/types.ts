@@ -77,12 +77,7 @@ export interface ConflictResolution {
   resolvedAt: Date;
 }
 
-export type ResolutionStrategy = 
-  | 'keep-local'
-  | 'keep-remote'
-  | 'merge'
-  | 'manual'
-  | 'auto-merge';
+export type ResolutionStrategy = 'keep-local' | 'keep-remote' | 'merge' | 'manual' | 'auto-merge';
 
 export interface ShareError {
   code: string;
@@ -151,13 +146,6 @@ export const DEFAULT_SHARING_CONFIG: WikiSharingConfig = {
   syncWithRemote: true,
   autoCommit: true,
   commitMessageTemplate: 'docs: update wiki documentation [skip ci]',
-  excludePatterns: [
-    '.wiki/**/*.tmp',
-    '.wiki/**/*.bak',
-    '.wiki/vectors/**',
-  ],
-  includePatterns: [
-    '**/*.md',
-    '**/*.json',
-  ],
+  excludePatterns: ['.wiki/**/*.tmp', '.wiki/**/*.bak', '.wiki/vectors/**'],
+  includePatterns: ['**/*.md', '**/*.json'],
 };

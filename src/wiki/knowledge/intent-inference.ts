@@ -95,7 +95,8 @@ export class IntentInference {
 
     const decisionPatterns = [
       {
-        regex: /(?:using|chose|selected|adopted)\s+(\w+)(?:\s+because|for|due to)?\s*:?\s*([^\n]+)/gi,
+        regex:
+          /(?:using|chose|selected|adopted)\s+(\w+)(?:\s+because|for|due to)?\s*:?\s*([^\n]+)/gi,
         type: 'decision' as const,
       },
       {
@@ -160,8 +161,7 @@ export class IntentInference {
       }
     }
 
-    const sortedDomains = Array.from(domainScores.entries())
-      .sort((a, b) => b[1] - a[1]);
+    const sortedDomains = Array.from(domainScores.entries()).sort((a, b) => b[1] - a[1]);
 
     const primaryDomain = sortedDomains[0]?.[0] || 'general';
     const allDomains = sortedDomains.slice(0, 3).map(([d]) => d);
@@ -225,7 +225,9 @@ export class IntentInference {
     const docComments = this.extractCommentBlocks(content);
     if (docComments.length > 0) {
       const firstDoc = docComments[0];
-      const intentMatch = firstDoc.match(/(?:provides?|handles?|manages?|implements?)\s+([^\n.]+)/i);
+      const intentMatch = firstDoc.match(
+        /(?:provides?|handles?|manages?|implements?)\s+([^\n.]+)/i
+      );
       if (intentMatch) {
         return intentMatch[1].trim();
       }
@@ -365,10 +367,16 @@ export class IntentInference {
 
       for (const symbol of file.symbols) {
         if (symbol.name.includes('Service')) {
-          namingPatterns.set('service-suffix-class', (namingPatterns.get('service-suffix-class') || 0) + 1);
+          namingPatterns.set(
+            'service-suffix-class',
+            (namingPatterns.get('service-suffix-class') || 0) + 1
+          );
         }
         if (symbol.name.includes('Controller')) {
-          namingPatterns.set('controller-suffix-class', (namingPatterns.get('controller-suffix-class') || 0) + 1);
+          namingPatterns.set(
+            'controller-suffix-class',
+            (namingPatterns.get('controller-suffix-class') || 0) + 1
+          );
         }
       }
     }

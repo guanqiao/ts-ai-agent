@@ -32,9 +32,7 @@ export abstract class BaseTool implements Tool {
       }
 
       if (param.enum && !param.enum.includes(value as string)) {
-        errors.push(
-          `Parameter ${param.name} must be one of: ${param.enum.join(', ')}`
-        );
+        errors.push(`Parameter ${param.name} must be one of: ${param.enum.join(', ')}`);
       }
     }
 

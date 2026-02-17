@@ -31,9 +31,7 @@ export class InteractionHistory {
     return this._projectPath;
   }
 
-  async record(
-    record: Omit<InteractionRecord, 'id' | 'timestamp'>
-  ): Promise<InteractionRecord> {
+  async record(record: Omit<InteractionRecord, 'id' | 'timestamp'>): Promise<InteractionRecord> {
     const fullRecord: InteractionRecord = {
       ...record,
       id: this.generateId(),
@@ -93,11 +91,13 @@ export class InteractionHistory {
     const lowerQuery = query.toLowerCase();
     const keywords = lowerQuery.split(/\s+/).filter((w) => w.length > 2);
 
-    return this.records.filter((record) => {
-      const inputMatch = keywords.some((k) => record.input.toLowerCase().includes(k));
-      const outputMatch = keywords.some((k) => record.output.toLowerCase().includes(k));
-      return inputMatch || outputMatch;
-    }).slice(0, 5);
+    return this.records
+      .filter((record) => {
+        const inputMatch = keywords.some((k) => record.input.toLowerCase().includes(k));
+        const outputMatch = keywords.some((k) => record.output.toLowerCase().includes(k));
+        return inputMatch || outputMatch;
+      })
+      .slice(0, 5);
   }
 
   async getStats(): Promise<InteractionStats> {
@@ -108,10 +108,7 @@ export class InteractionHistory {
     }
 
     const successCount = this.records.filter((r) => r.metadata.success).length;
-    const totalTokens = this.records.reduce(
-      (sum, r) => sum + (r.metadata.tokensUsed || 0),
-      0
-    );
+    const totalTokens = this.records.reduce((sum, r) => sum + (r.metadata.tokensUsed || 0), 0);
 
     const toolUsage = new Map<string, number>();
     for (const record of this.records) {

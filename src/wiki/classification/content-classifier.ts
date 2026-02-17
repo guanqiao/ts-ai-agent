@@ -22,12 +22,16 @@ export class WikiContentClassifier implements IContentClassifier {
     this.loadDefaultRules();
   }
 
-  async classify(content: string, metadata?: ClassificationMetadata): Promise<ClassificationResult> {
+  async classify(
+    content: string,
+    metadata?: ClassificationMetadata
+  ): Promise<ClassificationResult> {
     const ruleResults = await this.ruleEngine.applyRules(content, metadata || {});
 
     if (ruleResults.length > 0) {
       const bestMatch = ruleResults[0];
-      const category = bestMatch.actions.find((a) => a.category)?.category || ContentCategory.Unknown;
+      const category =
+        bestMatch.actions.find((a) => a.category)?.category || ContentCategory.Unknown;
       const confidence = bestMatch.actions[0]?.confidence || 0.5;
 
       return {
@@ -105,9 +109,7 @@ Return a JSON object with:
 - suggestedTags: array of relevant tags
 - reasoning: brief explanation`;
 
-      const response = await this.llmService.complete([
-        { role: 'user', content: prompt },
-      ]);
+      const response = await this.llmService.complete([{ role: 'user', content: prompt }]);
 
       return this.parseAIResponse(response);
     } catch {
@@ -278,10 +280,7 @@ Return a JSON object with:
 class ClassificationRuleEngine implements IRuleEngine {
   private rules: Map<string, CategoryRule> = new Map();
 
-  async applyRules(
-    content: string,
-    metadata: ClassificationMetadata
-  ): Promise<RuleMatchResult[]> {
+  async applyRules(content: string, metadata: ClassificationMetadata): Promise<RuleMatchResult[]> {
     const results: RuleMatchResult[] = [];
 
     const sortedRules = Array.from(this.rules.values())
@@ -342,11 +341,7 @@ class ClassificationRuleEngine implements IRuleEngine {
     }
   }
 
-  private getFieldValue(
-    field: string,
-    content: string,
-    metadata: ClassificationMetadata
-  ): unknown {
+  private getFieldValue(field: string, content: string, metadata: ClassificationMetadata): unknown {
     switch (field) {
       case 'title':
         return metadata.title || '';

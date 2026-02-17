@@ -110,7 +110,7 @@ export class OpenAIProvider extends BaseLLMProvider {
     await this.initializeClient();
 
     const { OpenAIEmbeddings } = await import('@langchain/openai');
-    
+
     const embeddings = new OpenAIEmbeddings({
       openAIApiKey: this.config.apiKey || process.env.OPENAI_API_KEY,
       modelName: 'text-embedding-3-small',
@@ -132,7 +132,7 @@ export class AnthropicProvider extends BaseLLMProvider {
     if (this.client) return;
 
     const anthropicModule = await import('@langchain/anthropic' as any).catch(() => null);
-    
+
     if (!anthropicModule) {
       throw new Error(
         '@langchain/anthropic is not installed. Please install it with: npm install @langchain/anthropic'

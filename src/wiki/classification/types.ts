@@ -122,7 +122,12 @@ export const DEFAULT_CATEGORY_RULES: CategoryRule[] = [
     category: ContentCategory.Overview,
     priority: 100,
     conditions: [
-      { field: 'title', operator: 'matches', value: /^(overview|summary|introduction|readme)$/i, weight: 1.0 },
+      {
+        field: 'title',
+        operator: 'matches',
+        value: /^(overview|summary|introduction|readme)$/i,
+        weight: 1.0,
+      },
     ],
     actions: [{ type: 'assign', category: ContentCategory.Overview, confidence: 0.95 }],
     enabled: true,
@@ -133,7 +138,12 @@ export const DEFAULT_CATEGORY_RULES: CategoryRule[] = [
     category: ContentCategory.Architecture,
     priority: 90,
     conditions: [
-      { field: 'title', operator: 'matches', value: /architecture|design|structure|system/i, weight: 0.9 },
+      {
+        field: 'title',
+        operator: 'matches',
+        value: /architecture|design|structure|system/i,
+        weight: 0.9,
+      },
     ],
     actions: [{ type: 'assign', category: ContentCategory.Architecture, confidence: 0.9 }],
     enabled: true,
@@ -144,8 +154,18 @@ export const DEFAULT_CATEGORY_RULES: CategoryRule[] = [
     category: ContentCategory.API,
     priority: 80,
     conditions: [
-      { field: 'content', operator: 'contains', value: ['API', 'endpoint', 'request', 'response', 'REST'], weight: 0.3 },
-      { field: 'content', operator: 'matches', value: /```(typescript|javascript|json)/, weight: 0.4 },
+      {
+        field: 'content',
+        operator: 'contains',
+        value: ['API', 'endpoint', 'request', 'response', 'REST'],
+        weight: 0.3,
+      },
+      {
+        field: 'content',
+        operator: 'matches',
+        value: /```(typescript|javascript|json)/,
+        weight: 0.4,
+      },
     ],
     actions: [{ type: 'assign', category: ContentCategory.API, confidence: 0.85 }],
     enabled: true,
@@ -155,9 +175,7 @@ export const DEFAULT_CATEGORY_RULES: CategoryRule[] = [
     name: 'Module by Title',
     category: ContentCategory.Module,
     priority: 85,
-    conditions: [
-      { field: 'title', operator: 'matches', value: /^module:?\s/i, weight: 1.0 },
-    ],
+    conditions: [{ field: 'title', operator: 'matches', value: /^module:?\s/i, weight: 1.0 }],
     actions: [{ type: 'assign', category: ContentCategory.Module, confidence: 0.95 }],
     enabled: true,
   },
@@ -167,7 +185,12 @@ export const DEFAULT_CATEGORY_RULES: CategoryRule[] = [
     category: ContentCategory.Guide,
     priority: 70,
     conditions: [
-      { field: 'content', operator: 'contains', value: ['getting started', 'how to', 'tutorial', 'guide', 'step'], weight: 0.5 },
+      {
+        field: 'content',
+        operator: 'contains',
+        value: ['getting started', 'how to', 'tutorial', 'guide', 'step'],
+        weight: 0.5,
+      },
     ],
     actions: [{ type: 'assign', category: ContentCategory.Guide, confidence: 0.8 }],
     enabled: true,
@@ -191,7 +214,12 @@ export const DEFAULT_CATEGORY_RULES: CategoryRule[] = [
     priority: 75,
     conditions: [
       { field: 'title', operator: 'matches', value: /config|settings?|options?/i, weight: 0.8 },
-      { field: 'sourceFiles', operator: 'contains', value: ['config', '.env', 'settings'], weight: 0.6 },
+      {
+        field: 'sourceFiles',
+        operator: 'contains',
+        value: ['config', '.env', 'settings'],
+        weight: 0.6,
+      },
     ],
     actions: [{ type: 'assign', category: ContentCategory.Config, confidence: 0.85 }],
     enabled: true,
@@ -203,7 +231,12 @@ export const DEFAULT_CATEGORY_RULES: CategoryRule[] = [
     priority: 65,
     conditions: [
       { field: 'sourceFiles', operator: 'matches', value: /\.(test|spec)\./, weight: 0.9 },
-      { field: 'content', operator: 'contains', value: ['describe(', 'it(', 'expect(', 'test('], weight: 0.7 },
+      {
+        field: 'content',
+        operator: 'contains',
+        value: ['describe(', 'it(', 'expect(', 'test('],
+        weight: 0.7,
+      },
     ],
     actions: [{ type: 'assign', category: ContentCategory.Test, confidence: 0.9 }],
     enabled: true,
@@ -214,7 +247,12 @@ export const DEFAULT_CATEGORY_RULES: CategoryRule[] = [
     category: ContentCategory.Changelog,
     priority: 95,
     conditions: [
-      { field: 'title', operator: 'matches', value: /^changelog|changes|release\snotes?$/i, weight: 1.0 },
+      {
+        field: 'title',
+        operator: 'matches',
+        value: /^changelog|changes|release\snotes?$/i,
+        weight: 1.0,
+      },
     ],
     actions: [{ type: 'assign', category: ContentCategory.Changelog, confidence: 0.95 }],
     enabled: true,
@@ -226,7 +264,12 @@ export const DEFAULT_CATEGORY_RULES: CategoryRule[] = [
     priority: 70,
     conditions: [
       { field: 'title', operator: 'matches', value: /^ADR|decision|why\s/i, weight: 0.9 },
-      { field: 'content', operator: 'contains', value: ['decision', 'chosen', 'alternative', 'consequence'], weight: 0.5 },
+      {
+        field: 'content',
+        operator: 'contains',
+        value: ['decision', 'chosen', 'alternative', 'consequence'],
+        weight: 0.5,
+      },
     ],
     actions: [{ type: 'assign', category: ContentCategory.Decision, confidence: 0.85 }],
     enabled: true,

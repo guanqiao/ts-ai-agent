@@ -162,6 +162,7 @@ export interface ProgressInfo {
   total: number;
   message: string;
   percentage: string;
+  timeEstimate?: TimeEstimate;
 }
 
 export type ProgressCallback = (info: ProgressInfo) => void;
@@ -192,6 +193,54 @@ export interface GenerationError {
   timestamp: Date;
   recoverable: boolean;
   details?: Record<string, unknown>;
+}
+
+// ==================== 时间预估类型 ====================
+
+export interface TimeEstimate {
+  elapsedMs: number;
+  estimatedRemainingMs: number;
+  estimatedTotalMs: number;
+  averageSpeed: number;
+  phaseEstimates: PhaseTimeEstimate[];
+}
+
+export interface PhaseTimeEstimate {
+  phase: GenerationPhase;
+  elapsedMs: number;
+  estimatedRemainingMs: number;
+  itemsPerSecond: number;
+  progress: number;
+}
+
+// ==================== 进度持久化类型 ====================
+
+export interface ProgressSnapshot {
+  id: string;
+  projectPath: string;
+  phase: GenerationPhase;
+  step: number;
+  totalSteps: number;
+  progress: number;
+  timestamp: Date;
+  stats: GenerationStats;
+  timeEstimate: TimeEstimate;
+  checksum: string;
+}
+
+export interface ProgressPersistenceConfig {
+  enabled: boolean;
+  saveIntervalMs: number;
+  maxSnapshots: number;
+  storagePath: string;
+}
+
+export interface IProgressPersistence {
+  save(snapshot: ProgressSnapshot): Promise<void>;
+  load(projectPath: string): Promise<ProgressSnapshot | null>;
+  listPending(): Promise<ProgressSnapshot[]>;
+  clear(projectPath: string): Promise<void>;
+  getLatest(projectPath: string): Promise<ProgressSnapshot | null>;
 }
 
 export interface WikiOptions {

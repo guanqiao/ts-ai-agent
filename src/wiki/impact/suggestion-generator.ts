@@ -1,7 +1,6 @@
 import { SuggestedAction, ImpactItem, RiskAssessment, RiskLevel } from './types';
 
 export class SuggestionGenerator {
-
   constructor(_projectPath: string) {}
 
   generateSuggestions(
@@ -12,8 +11,15 @@ export class SuggestionGenerator {
     const suggestions: SuggestedAction[] = [];
 
     suggestions.push(...this.suggestDocUpdates([...directImpacts, ...indirectImpacts]));
-    suggestions.push(...this.suggestTestRuns([...directImpacts, ...indirectImpacts], riskAssessment));
-    suggestions.push(...this.suggestNotifications([...directImpacts, ...indirectImpacts], riskAssessment.overallRisk));
+    suggestions.push(
+      ...this.suggestTestRuns([...directImpacts, ...indirectImpacts], riskAssessment)
+    );
+    suggestions.push(
+      ...this.suggestNotifications(
+        [...directImpacts, ...indirectImpacts],
+        riskAssessment.overallRisk
+      )
+    );
 
     return suggestions.sort((a, b) => {
       const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
@@ -23,8 +29,8 @@ export class SuggestionGenerator {
 
   suggestDocUpdates(impacts: ImpactItem[]): SuggestedAction[] {
     const suggestions: SuggestedAction[] = [];
-    const documentImpacts = impacts.filter(item => item.type === 'document');
-    const codeImpacts = impacts.filter(item => item.type === 'file');
+    const documentImpacts = impacts.filter((item) => item.type === 'document');
+    const codeImpacts = impacts.filter((item) => item.type === 'file');
 
     if (documentImpacts.length > 0) {
       suggestions.push({
@@ -32,7 +38,7 @@ export class SuggestionGenerator {
         type: 'update',
         priority: 'medium',
         description: '更新受影响的文档',
-        target: documentImpacts.map(item => item.path).join(', '),
+        target: documentImpacts.map((item) => item.path).join(', '),
         estimatedEffort: 'low',
         deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
       });
@@ -44,7 +50,7 @@ export class SuggestionGenerator {
         type: 'update',
         priority: 'low',
         description: '检查并更新相关代码文档',
-        target: codeImpacts.map(item => item.path).join(', '),
+        target: codeImpacts.map((item) => item.path).join(', '),
         estimatedEffort: 'low',
         deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000), // 14 days
       });
@@ -55,8 +61,8 @@ export class SuggestionGenerator {
 
   suggestTestRuns(impacts: ImpactItem[], riskAssessment: RiskAssessment): SuggestedAction[] {
     const suggestions: SuggestedAction[] = [];
-    const testImpacts = impacts.filter(item => item.type === 'test');
-    const highImpactImpacts = impacts.filter(item => item.impactLevel === 'high');
+    const testImpacts = impacts.filter((item) => item.type === 'test');
+    const highImpactImpacts = impacts.filter((item) => item.impactLevel === 'high');
 
     let priority: SuggestedAction['priority'] = 'medium';
     let estimatedEffort: SuggestedAction['estimatedEffort'] = 'medium';
@@ -77,7 +83,7 @@ export class SuggestionGenerator {
       type: 'test',
       priority,
       description: '运行相关测试用例',
-      target: impacts.map(item => item.path).join(', '),
+      target: impacts.map((item) => item.path).join(', '),
       estimatedEffort,
       deadline: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000), // 2 days
     });
@@ -88,7 +94,7 @@ export class SuggestionGenerator {
         type: 'update',
         priority: 'medium',
         description: '更新受影响的测试用例',
-        target: testImpacts.map(item => item.path).join(', '),
+        target: testImpacts.map((item) => item.path).join(', '),
         estimatedEffort: 'medium',
         deadline: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days
       });
@@ -100,7 +106,7 @@ export class SuggestionGenerator {
         type: 'test',
         priority: 'high',
         description: '进行全面回归测试',
-        target: highImpactImpacts.map(item => item.path).join(', '),
+        target: highImpactImpacts.map((item) => item.path).join(', '),
         estimatedEffort: 'high',
         deadline: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // 1 day
       });
@@ -127,7 +133,7 @@ export class SuggestionGenerator {
       type: 'notify',
       priority,
       description: '通知团队成员变更影响',
-      target: impacts.map(item => item.path).join(', '),
+      target: impacts.map((item) => item.path).join(', '),
       estimatedEffort: 'low',
       deadline: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // 1 day
     });
@@ -150,7 +156,7 @@ export class SuggestionGenerator {
         type: 'rollback',
         priority: 'urgent',
         description: '准备回滚计划',
-        target: impacts.map(item => item.path).join(', '),
+        target: impacts.map((item) => item.path).join(', '),
         estimatedEffort: 'medium',
         deadline: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000), // 1 day
       });
@@ -167,7 +173,7 @@ export class SuggestionGenerator {
       overallRisk: riskLevel,
       riskScore: 0,
       factors: [],
-      affectedAreas: impacts.map(item => item.path),
+      affectedAreas: impacts.map((item) => item.path),
       timeframe: 'immediate',
       recommendation: 'Test recommendation',
     };

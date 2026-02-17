@@ -10,14 +10,15 @@ import {
   SnapshotFile,
   SnapshotMetadata,
 } from './types';
+import { SnapshotIndex } from './snapshot-index';
 
 export class IncrementalUpdater implements IIncrementalUpdater {
   private snapshotDir: string;
-  private maxSnapshots: number;
+  private snapshotIndex: SnapshotIndex;
 
   constructor(snapshotDir: string = '.wiki-snapshots', maxSnapshots: number = 10) {
     this.snapshotDir = snapshotDir;
-    this.maxSnapshots = maxSnapshots;
+    this.snapshotIndex = new SnapshotIndex(snapshotDir, maxSnapshots);
   }
 
   async update(changeSet: ChangeSet, existingDocument: string): Promise<string> {
@@ -100,16 +101,23 @@ export class IncrementalUpdater implements IIncrementalUpdater {
     const snapshotPath = path.join(this.snapshotDir, `${snapshot.id}.json`);
     await fs.promises.writeFile(snapshotPath, JSON.stringify(snapshot, null, 2));
 
+    this.snapshotIndex.addSnapshot(snapshot);
+
     await this.cleanupOldSnapshots();
   }
 
   async getLatestSnapshot(): Promise<Snapshot | null> {
+    const latestId = this.snapshotIndex.getLatestSnapshotId();
+    if (latestId) {
+      return this.loadSnapshot(latestId);
+    }
+
     if (!fs.existsSync(this.snapshotDir)) {
       return null;
     }
 
     const files = await fs.promises.readdir(this.snapshotDir);
-    const snapshotFiles = files.filter((f) => f.endsWith('.json'));
+    const snapshotFiles = files.filter((f) => f.endsWith('.json') && f !== 'snapshot-index.json');
 
     if (snapshotFiles.length === 0) {
       return null;
@@ -125,6 +133,10 @@ export class IncrementalUpdater implements IIncrementalUpdater {
     }
 
     snapshots.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+
+    if (snapshots.length > 0) {
+      this.snapshotIndex.addSnapshot(snapshots[0]);
+    }
 
     return snapshots[0] || null;
   }
@@ -322,40 +334,159 @@ export class IncrementalUpdater implements IIncrementalUpdater {
   }
 
   private async cleanupOldSnapshots(): Promise<void> {
-    if (!fs.existsSync(this.snapshotDir)) {
-      return;
-    }
+    const idsToDelete = this.snapshotIndex.getSnapshotIdsToDelete();
 
-    const files = await fs.promises.readdir(this.snapshotDir);
-    const snapshotFiles = files.filter((f) => f.endsWith('.json'));
-
-    if (snapshotFiles.length <= this.maxSnapshots) {
-      return;
-    }
-
-    const snapshots: { file: string; timestamp: number }[] = [];
-
-    for (const file of snapshotFiles) {
-      const snapshotId = file.replace('.json', '');
-      const snapshot = await this.loadSnapshot(snapshotId);
-      if (snapshot) {
-        snapshots.push({
-          file,
-          timestamp: snapshot.timestamp.getTime(),
-        });
+    for (const snapshotId of idsToDelete) {
+      const snapshotPath = path.join(this.snapshotDir, `${snapshotId}.json`);
+      try {
+        await fs.promises.unlink(snapshotPath);
+        this.snapshotIndex.removeSnapshot(snapshotId);
+      } catch {
+        // File may not exist
       }
-    }
-
-    snapshots.sort((a, b) => b.timestamp - a.timestamp);
-
-    const toDelete = snapshots.slice(this.maxSnapshots);
-
-    for (const { file } of toDelete) {
-      await fs.promises.unlink(path.join(this.snapshotDir, file));
     }
   }
 
   private escapeRegExp(str: string): string {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  async getChangedFilesSinceLastSnapshot(currentFiles: ParsedFile[]): Promise<{
+    added: string[];
+    modified: string[];
+    deleted: string[];
+  }> {
+    const lastSnapshot = await this.getLatestSnapshot();
+
+    if (!lastSnapshot) {
+      return {
+        added: currentFiles.map(f => f.path),
+        modified: [],
+        deleted: [],
+      };
+    }
+
+    const snapshotFileMap = new Map<string, string>();
+    for (const file of lastSnapshot.files) {
+      snapshotFileMap.set(file.path, file.hash);
+    }
+
+    const currentFileMap = new Map<string, ParsedFile>();
+    for (const file of currentFiles) {
+      currentFileMap.set(file.path, file);
+    }
+
+    const added: string[] = [];
+    const modified: string[] = [];
+    const deleted: string[] = [];
+
+    for (const [path] of snapshotFileMap) {
+      if (!currentFileMap.has(path)) {
+        deleted.push(path);
+      }
+    }
+
+    for (const [path, file] of currentFileMap) {
+      const oldHash = snapshotFileMap.get(path);
+      if (!oldHash) {
+        added.push(path);
+      } else {
+        const currentHash = this.computeFileHash(file);
+        if (currentHash !== oldHash) {
+          modified.push(path);
+        }
+      }
+    }
+
+    return { added, modified, deleted };
+  }
+
+  createEnhancedSnapshot(
+    files: ParsedFile[],
+    commitHash: string,
+    pageFileMap?: Map<string, Set<string>>
+  ): Snapshot & { pageFileMap?: Record<string, string[]> } {
+    const baseSnapshot = this.createSnapshot(files, commitHash);
+
+    if (pageFileMap) {
+      const pageFileMapRecord: Record<string, string[]> = {};
+      for (const [pageId, filePaths] of pageFileMap) {
+        pageFileMapRecord[pageId] = Array.from(filePaths);
+      }
+      return {
+        ...baseSnapshot,
+        pageFileMap: pageFileMapRecord,
+      };
+    }
+
+    return baseSnapshot;
+  }
+
+  async saveEnhancedSnapshot(
+    snapshot: Snapshot & { pageFileMap?: Record<string, string[]> }
+  ): Promise<void> {
+    if (!fs.existsSync(this.snapshotDir)) {
+      await fs.promises.mkdir(this.snapshotDir, { recursive: true });
+    }
+
+    const snapshotPath = path.join(this.snapshotDir, `${snapshot.id}.json`);
+    await fs.promises.writeFile(snapshotPath, JSON.stringify(snapshot, null, 2));
+
+    await this.cleanupOldSnapshots();
+  }
+
+  async loadEnhancedSnapshot(
+    snapshotId: string
+  ): Promise<(Snapshot & { pageFileMap?: Record<string, string[]> }) | null> {
+    const snapshot = await this.loadSnapshot(snapshotId);
+    if (!snapshot) {
+      return null;
+    }
+
+    const snapshotPath = path.join(this.snapshotDir, `${snapshotId}.json`);
+    try {
+      const content = await fs.promises.readFile(snapshotPath, 'utf-8');
+      const parsed = JSON.parse(content);
+      return {
+        ...snapshot,
+        pageFileMap: parsed.pageFileMap,
+      };
+    } catch {
+      return snapshot;
+    }
+  }
+
+  async getLatestEnhancedSnapshot(): Promise<(Snapshot & { pageFileMap?: Record<string, string[]> }) | null> {
+    const latestSnapshot = await this.getLatestSnapshot();
+    if (!latestSnapshot) {
+      return null;
+    }
+
+    return this.loadEnhancedSnapshot(latestSnapshot.id);
+  }
+
+  async getAffectedPages(changedFiles: string[]): Promise<string[]> {
+    const enhancedSnapshot = await this.getLatestEnhancedSnapshot();
+    if (!enhancedSnapshot || !enhancedSnapshot.pageFileMap) {
+      return [];
+    }
+
+    const affectedPages = new Set<string>();
+    const changedFilesSet = new Set(changedFiles);
+
+    for (const [pageId, sourceFiles] of Object.entries(enhancedSnapshot.pageFileMap)) {
+      for (const sourceFile of sourceFiles) {
+        if (changedFilesSet.has(sourceFile)) {
+          affectedPages.add(pageId);
+          break;
+        }
+      }
+    }
+
+    return Array.from(affectedPages);
+  }
+
+  computeHash(content: string): string {
+    return crypto.createHash('md5').update(content).digest('hex');
   }
 }

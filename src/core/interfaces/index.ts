@@ -27,7 +27,11 @@ export interface IAgent {
 }
 
 export interface IWikiManager {
-  initialize(projectPath: string, options: import('../../wiki/types').WikiOptions, user?: string): Promise<void>;
+  initialize(
+    projectPath: string,
+    options: import('../../wiki/types').WikiOptions,
+    user?: string
+  ): Promise<void>;
   generate(context: import('../../wiki/types').WikiContext): Promise<WikiDocument>;
   update(changeSet: ChangeSet): Promise<void>;
   query(question: string): Promise<import('../../wiki/types').WikiAnswer>;
@@ -68,7 +72,9 @@ export interface ITemplateEngine {
 }
 
 export interface IArchitectureAnalyzer {
-  analyze(parsedFiles: ParsedFile[]): Promise<import('../../architecture/types').ArchitectureReport>;
+  analyze(
+    parsedFiles: ParsedFile[]
+  ): Promise<import('../../architecture/types').ArchitectureReport>;
 }
 
 export interface IKnowledgeBase {
@@ -85,13 +91,19 @@ export interface IVectorStore {
   addDocuments(docs: import('../../wiki/types').VectorDocument[]): Promise<void>;
   removeDocument(id: string): Promise<void>;
   search(query: string, k: number): Promise<import('../../wiki/types').SearchResult[]>;
-  similaritySearch(embedding: number[], k: number): Promise<import('../../wiki/types').SearchResult[]>;
+  similaritySearch(
+    embedding: number[],
+    k: number
+  ): Promise<import('../../wiki/types').SearchResult[]>;
   getDocumentCount(): number;
   clear(): Promise<void>;
 }
 
 export interface IHybridSearch {
-  search(query: string, options: import('../../wiki/types').HybridSearchOptions): Promise<import('../../wiki/types').SearchResult[]>;
+  search(
+    query: string,
+    options: import('../../wiki/types').HybridSearchOptions
+  ): Promise<import('../../wiki/types').SearchResult[]>;
   indexDocument(doc: import('../../wiki/types').VectorDocument): Promise<void>;
   removeDocument(docId: string): Promise<void>;
   reindex(): Promise<void>;
@@ -103,7 +115,10 @@ export interface IGitWatcher {
 }
 
 export interface IIncrementalUpdater {
-  createSnapshot(parsedFiles: ParsedFile[], commitHash: string): import('../../sync/types').Snapshot;
+  createSnapshot(
+    parsedFiles: ParsedFile[],
+    commitHash: string
+  ): import('../../sync/types').Snapshot;
   saveSnapshot(snapshot: import('../../sync/types').Snapshot): Promise<void>;
   loadLatestSnapshot(): Promise<import('../../sync/types').Snapshot | null>;
   mergeContent(oldContent: string, newContent: string, changeType: string): string;

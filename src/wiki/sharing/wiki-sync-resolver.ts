@@ -1,10 +1,6 @@
 import * as path from 'path';
 import * as fs from 'fs';
-import {
-  Conflict,
-  ConflictResolution,
-  ResolutionStrategy,
-} from './types';
+import { Conflict, ConflictResolution, ResolutionStrategy } from './types';
 
 interface DiffChange {
   added?: boolean;
@@ -16,13 +12,13 @@ function diffLines(oldStr: string, newStr: string): DiffChange[] {
   const oldLines = oldStr.split('\n');
   const newLines = newStr.split('\n');
   const changes: DiffChange[] = [];
-  
+
   const maxLen = Math.max(oldLines.length, newLines.length);
-  
+
   for (let i = 0; i < maxLen; i++) {
     const oldLine = oldLines[i];
     const newLine = newLines[i];
-    
+
     if (oldLine === undefined && newLine !== undefined) {
       changes.push({ added: true, value: newLine + '\n' });
     } else if (oldLine !== undefined && newLine === undefined) {
@@ -38,7 +34,7 @@ function diffLines(oldStr: string, newStr: string): DiffChange[] {
       changes.push({ value: oldLine + '\n' });
     }
   }
-  
+
   return changes;
 }
 
@@ -56,7 +52,10 @@ export interface MergeConflict {
 }
 
 export class WikiSyncResolver {
-  async resolveConflict(conflict: Conflict, strategy: ResolutionStrategy): Promise<ConflictResolution> {
+  async resolveConflict(
+    conflict: Conflict,
+    strategy: ResolutionStrategy
+  ): Promise<ConflictResolution> {
     let resolvedContent: string | undefined;
 
     switch (strategy) {
@@ -110,7 +109,7 @@ export class WikiSyncResolver {
 
     // Try three-way merge for better results
     const threeWayResult = this.threeWayMerge(localContent, remoteContent, '');
-    
+
     return {
       success: conflicts.length === 0,
       content: threeWayResult || mergedContent,
@@ -158,8 +157,12 @@ export class WikiSyncResolver {
       }
 
       // Both have changes to the same section
-      if (!localChange.added && !localChange.removed && 
-          !remoteChange.added && !remoteChange.removed) {
+      if (
+        !localChange.added &&
+        !localChange.removed &&
+        !remoteChange.added &&
+        !remoteChange.removed
+      ) {
         // Both unchanged - use either
         result.push(localChange.value);
         localIdx++;
@@ -192,7 +195,7 @@ export class WikiSyncResolver {
   private simpleMerge(local: string, remote: string): string {
     const localLines = local.split('\n');
     const remoteLines = remote.split('\n');
-    
+
     const result: string[] = [];
     const usedRemoteLines = new Set<number>();
 
@@ -239,7 +242,7 @@ export class WikiSyncResolver {
     const remoteChangedSections = this.getChangedSections(remoteLines);
 
     const overlap = this.sectionsOverlap(localChangedSections, remoteChangedSections);
-    
+
     return overlap ? 'requires-manual' : 'resolvable';
   }
 
@@ -285,7 +288,7 @@ export class WikiSyncResolver {
   generateMergePreview(conflict: Conflict): string {
     const local = conflict.localVersion.content;
     const remote = conflict.remoteVersion.content;
-    
+
     const changes = diffLines(local, remote);
     let preview = '';
 
@@ -293,7 +296,7 @@ export class WikiSyncResolver {
       const lines = change.value.split('\n');
       for (const line of lines) {
         if (line.trim() === '') continue;
-        
+
         if (change.added) {
           preview += `+ ${line}\n`;
         } else if (change.removed) {
@@ -365,7 +368,7 @@ export class WikiSyncResolver {
 
   async autoResolve(conflict: Conflict, strategy: ResolutionStrategy): Promise<Conflict> {
     const resolution = await this.resolveConflict(conflict, strategy);
-    
+
     return {
       ...conflict,
       resolved: true,
@@ -402,7 +405,7 @@ export class WikiSyncResolver {
     }
 
     const filePath = path.join(projectPath, conflict.filePath);
-    
+
     // 检查文件是否存在
     if (!fs.existsSync(filePath)) {
       throw new Error(`File not found: ${filePath}`);
@@ -419,7 +422,7 @@ export class WikiSyncResolver {
 
     for (const conflict of conflicts) {
       const resolution = resolutions.get(conflict.id);
-      
+
       if (resolution) {
         results.push({
           ...conflict,

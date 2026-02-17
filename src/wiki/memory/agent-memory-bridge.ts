@@ -1,12 +1,7 @@
 import { LLMService } from '../../llm';
 import { WikiSearchMemory } from './wiki-search-memory';
 import { KnowledgeCache } from './knowledge-cache';
-import {
-  MemoryEntry,
-  MemoryEntryType,
-  MemoryContext,
-  IAgentMemoryBridge,
-} from './types';
+import { MemoryEntry, MemoryEntryType, MemoryContext, IAgentMemoryBridge } from './types';
 
 export class AgentMemoryBridge implements IAgentMemoryBridge {
   private memoryService: WikiSearchMemory;
@@ -64,7 +59,7 @@ export class AgentMemoryBridge implements IAgentMemoryBridge {
   }
 
   async enrichPrompt(prompt: string, context?: MemoryContext): Promise<string> {
-    const memoryContext = context || await this.provideContext(prompt);
+    const memoryContext = context || (await this.provideContext(prompt));
 
     if (memoryContext.entries.length === 0) {
       return prompt;
@@ -183,7 +178,9 @@ ${prompt}`;
       const typeLabel = entry.type.charAt(0).toUpperCase() + entry.type.slice(1);
       const source = entry.metadata.filePath || entry.metadata.pageId || 'project';
 
-      sections.push(`### ${typeLabel} (${source})\n\n${entry.content.slice(0, 500)}${entry.content.length > 500 ? '...' : ''}`);
+      sections.push(
+        `### ${typeLabel} (${source})\n\n${entry.content.slice(0, 500)}${entry.content.length > 500 ? '...' : ''}`
+      );
     }
 
     if (context.summary) {

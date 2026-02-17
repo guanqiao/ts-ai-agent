@@ -304,7 +304,9 @@ export class EnhancedAgentMemoryBridge {
       const typeEntries = typeGroups.get(type);
       if (typeEntries && typeEntries.length > 0) {
         const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
-        parts.push(`${typeLabel}: ${typeEntries.map((e) => e.content.substring(0, 100)).join('; ')}`);
+        parts.push(
+          `${typeLabel}: ${typeEntries.map((e) => e.content.substring(0, 100)).join('; ')}`
+        );
       }
     }
 

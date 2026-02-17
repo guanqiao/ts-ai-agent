@@ -138,14 +138,23 @@ export class DocumentQualityEvaluator implements IQualityEvaluator {
     };
   }
 
-  private async evaluateAccuracy(content: string, _metadata?: QualityMetadata): Promise<DimensionScore> {
+  private async evaluateAccuracy(
+    content: string,
+    _metadata?: QualityMetadata
+  ): Promise<DimensionScore> {
     const issues: QualityIssue[] = [];
     let score = 85;
 
     const brokenLinks = this.findBrokenLinkPatterns(content);
     if (brokenLinks.length > 0) {
       score -= brokenLinks.length * 5;
-      issues.push(this.createIssue('accuracy', 'major', `Found ${brokenLinks.length} potentially broken link patterns`));
+      issues.push(
+        this.createIssue(
+          'accuracy',
+          'major',
+          `Found ${brokenLinks.length} potentially broken link patterns`
+        )
+      );
     }
 
     const codeBlocks = this.extractCodeBlocks(content);
@@ -170,9 +179,10 @@ export class DocumentQualityEvaluator implements IQualityEvaluator {
     let score = 100;
 
     const sentences = content.split(/[.!?]+/).filter((s) => s.trim().length > 0);
-    const avgSentenceLength = sentences.length > 0
-      ? sentences.reduce((sum, s) => sum + s.split(/\s+/).length, 0) / sentences.length
-      : 0;
+    const avgSentenceLength =
+      sentences.length > 0
+        ? sentences.reduce((sum, s) => sum + s.split(/\s+/).length, 0) / sentences.length
+        : 0;
 
     if (avgSentenceLength > 25) {
       score -= 15;
@@ -180,9 +190,10 @@ export class DocumentQualityEvaluator implements IQualityEvaluator {
     }
 
     const paragraphs = content.split(/\n\n+/).filter((p) => p.trim().length > 0);
-    const avgParagraphLength = paragraphs.length > 0
-      ? paragraphs.reduce((sum, p) => sum + p.split(/\s+/).length, 0) / paragraphs.length
-      : 0;
+    const avgParagraphLength =
+      paragraphs.length > 0
+        ? paragraphs.reduce((sum, p) => sum + p.split(/\s+/).length, 0) / paragraphs.length
+        : 0;
 
     if (avgParagraphLength > 150) {
       score -= 10;
@@ -232,7 +243,9 @@ export class DocumentQualityEvaluator implements IQualityEvaluator {
     const hasTOC = content.includes('## Table of Contents') || content.includes('## Contents');
     if (headings.length > 10 && !hasTOC) {
       score -= 5;
-      issues.push(this.createIssue('structure', 'suggestion', 'Consider adding a table of contents'));
+      issues.push(
+        this.createIssue('structure', 'suggestion', 'Consider adding a table of contents')
+      );
     }
 
     return {
@@ -244,7 +257,10 @@ export class DocumentQualityEvaluator implements IQualityEvaluator {
     };
   }
 
-  private async evaluateCoverage(content: string, metadata?: QualityMetadata): Promise<DimensionScore> {
+  private async evaluateCoverage(
+    content: string,
+    metadata?: QualityMetadata
+  ): Promise<DimensionScore> {
     const issues: QualityIssue[] = [];
     let score = 100;
 
@@ -289,7 +305,9 @@ export class DocumentQualityEvaluator implements IQualityEvaluator {
       const daysSinceUpdate = this.daysSince(metadata.lastUpdated);
       if (daysSinceUpdate > 365) {
         score -= 30;
-        issues.push(this.createIssue('freshness', 'major', 'Content has not been updated in over a year'));
+        issues.push(
+          this.createIssue('freshness', 'major', 'Content has not been updated in over a year')
+        );
       } else if (daysSinceUpdate > 180) {
         score -= 15;
         issues.push(this.createIssue('freshness', 'minor', 'Content may be outdated'));
@@ -540,7 +558,7 @@ export class DocumentQualityEvaluator implements IQualityEvaluator {
     const styles = new Set<string>();
 
     if (content.includes('```')) styles.add('fenced');
-    if (content.match(/^    /m)) styles.add('indented');
+    if (content.match(/^ {4}/m)) styles.add('indented');
 
     return Array.from(styles);
   }

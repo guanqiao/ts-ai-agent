@@ -75,11 +75,7 @@ import {
   ExportOptions,
   ExportFormat,
 } from './diagram';
-import {
-  KnowledgeGraph,
-  KnowledgeNode,
-  KnowledgeGraphService,
-} from './knowledge';
+import { KnowledgeGraph, KnowledgeNode, KnowledgeGraphService } from './knowledge';
 import { KnowledgeCluster } from './knowledge/types';
 import {
   EnhancedChangeImpact,
@@ -157,29 +153,32 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     return this.projectPath;
   }
 
-  async injectDependencies(deps: {
-    storage: WikiStorage;
-    history: WikiHistory;
-    audit: WikiAudit;
-    autoSync: WikiAutoSync;
-    syncMonitor: WikiSyncMonitor;
-    sharingService: WikiSharingService;
-    graphGenerator: WikiGraphGenerator;
-    editorService: WikiEditorService;
-    diagramGenerator: ArchitectureDiagramGenerator;
-    diagramExporter: DiagramExporter;
-    collaborationService: WikiCollaborationService;
-    permissionService: WikiPermissionService;
-    lockService: WikiLockService;
-    adrService: ADRService;
-    adrExtractor: ADRExtractor;
-    adrTemplates: ADRTemplates;
-    knowledgeGraphService: KnowledgeGraphService;
-    changeImpactAnalyzer: import('./impact').ChangeImpactAnalyzer;
-    riskAssessmentService: import('./impact').RiskAssessmentService;
-    suggestionGenerator: import('./impact').SuggestionGenerator;
-    llmService?: LLMService;
-  }, projectPath?: string): Promise<void> {
+  async injectDependencies(
+    deps: {
+      storage: WikiStorage;
+      history: WikiHistory;
+      audit: WikiAudit;
+      autoSync: WikiAutoSync;
+      syncMonitor: WikiSyncMonitor;
+      sharingService: WikiSharingService;
+      graphGenerator: WikiGraphGenerator;
+      editorService: WikiEditorService;
+      diagramGenerator: ArchitectureDiagramGenerator;
+      diagramExporter: DiagramExporter;
+      collaborationService: WikiCollaborationService;
+      permissionService: WikiPermissionService;
+      lockService: WikiLockService;
+      adrService: ADRService;
+      adrExtractor: ADRExtractor;
+      adrTemplates: ADRTemplates;
+      knowledgeGraphService: KnowledgeGraphService;
+      changeImpactAnalyzer: import('./impact').ChangeImpactAnalyzer;
+      riskAssessmentService: import('./impact').RiskAssessmentService;
+      suggestionGenerator: import('./impact').SuggestionGenerator;
+      llmService?: LLMService;
+    },
+    projectPath?: string
+  ): Promise<void> {
     this.projectPath = projectPath || '';
     this.storage = deps.storage;
     this.wikiHistory = deps.history;
@@ -281,14 +280,14 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     const { parsedFiles, architecture } = context;
 
     this.progressMonitor = new WikiProgressMonitor();
-    
+
     if (context.options.onProgress) {
       this.progressMonitor.onProgress(context.options.onProgress);
     }
 
-    this.progressMonitor.on('progress', (event: WikiProgressEvent) => {
+    this.progressMonitor.on('progress', ((event: WikiProgressEvent) => {
       this.emit('progress', event);
-    });
+    }) as (...args: unknown[]) => void);
 
     const totalSymbols = parsedFiles.reduce((sum, f) => sum + f.symbols.length, 0);
     this.progressMonitor.setTotalFiles(parsedFiles.length);
@@ -300,13 +299,19 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     try {
       this.progressMonitor.updatePhase('analysis', parsedFiles.length, 'Analyzing architecture...');
       this.emitProgress('architecture-analyzing', 'analysis', 0, parsedFiles.length);
-      
+
       const archReport = architecture || (await this.architectureAnalyzer!.analyze(parsedFiles));
-      
-      this.emitProgress('architecture-analyzed', 'analysis', parsedFiles.length, parsedFiles.length, {
-        pattern: archReport.pattern?.pattern,
-        modules: archReport.modules?.length,
-      });
+
+      this.emitProgress(
+        'architecture-analyzed',
+        'analysis',
+        parsedFiles.length,
+        parsedFiles.length,
+        {
+          pattern: archReport.pattern?.pattern,
+          modules: archReport.modules?.length,
+        }
+      );
 
       this.progressMonitor.updatePhase('generation', 4, 'Generating pages...');
       const pages = await this.generatePagesWithProgress(parsedFiles, archReport);
@@ -369,6 +374,349 @@ export class WikiManager extends EventEmitter implements IWikiManager {
       this.progressMonitor.error(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
+  }
+
+  async generateIncremental(
+    context: WikiContext,
+    forceFull: boolean = false
+  ): Promise<{ document: WikiDocument; result: import('./incremental/types').IncrementalUpdateResult }> {
+    const startTime = Date.now();
+    const { parsedFiles } = context;
+
+    const existingDoc = await this.storage!.load(this.projectPath);
+    const lastSnapshot = await this.incrementalUpdater!.getLatestSnapshot();
+
+    const shouldUseIncremental = !forceFull && await this.shouldUseIncrementalUpdate(existingDoc, parsedFiles);
+
+    if (!shouldUseIncremental) {
+      const document = await this.generate(context);
+      return {
+        document,
+        result: {
+          success: true,
+          strategy: 'full',
+          pagesUpdated: document.pages.map(p => p.id),
+          pagesUnchanged: [],
+          pagesAdded: [],
+          pagesDeleted: [],
+          filesProcessed: parsedFiles.length,
+          totalTime: Date.now() - startTime,
+          changePercentage: 100,
+          metrics: {
+            parseTime: 0,
+            analysisTime: 0,
+            updateTime: 0,
+            saveTime: 0,
+            cacheHits: 0,
+            cacheMisses: 0,
+          },
+        },
+      };
+    }
+
+    return this.performIncrementalUpdate(context, existingDoc!, lastSnapshot, startTime);
+  }
+
+  private async shouldUseIncrementalUpdate(
+    existingDoc: WikiDocument | null,
+    parsedFiles: ParsedFile[]
+  ): Promise<boolean> {
+    if (!existingDoc) {
+      return false;
+    }
+
+    const { hasChanges, changePercentage } = await this.incrementalUpdater!.detectChangesSinceLastSnapshot(parsedFiles);
+
+    const threshold = 50;
+    if (changePercentage > threshold) {
+      return false;
+    }
+
+    return hasChanges;
+  }
+
+  private async performIncrementalUpdate(
+    context: WikiContext,
+    existingDoc: WikiDocument,
+    lastSnapshot: any,
+    startTime: number
+  ): Promise<{ document: WikiDocument; result: import('./incremental/types').IncrementalUpdateResult }> {
+    const { parsedFiles, architecture } = context;
+    const metrics = {
+      parseTime: 0,
+      analysisTime: 0,
+      updateTime: 0,
+      saveTime: 0,
+      cacheHits: 0,
+      cacheMisses: 0,
+    };
+
+    this.progressMonitor = new WikiProgressMonitor();
+    if (context.options.onProgress) {
+      this.progressMonitor.onProgress(context.options.onProgress);
+    }
+
+    this.progressMonitor.start(3, 'Starting incremental update...');
+    this.progressMonitor.updatePhase('analysis', 1, 'Analyzing changes...');
+
+    const parseStartTime = Date.now();
+    const archReport = architecture || (await this.architectureAnalyzer!.analyze(parsedFiles));
+    metrics.parseTime = Date.now() - parseStartTime;
+
+    const analysisStartTime = Date.now();
+    const changes = await this.detectChanges(parsedFiles, lastSnapshot);
+    const affectedPages = this.findAffectedPagesByChanges(changes, existingDoc);
+    metrics.analysisTime = Date.now() - analysisStartTime;
+
+    this.progressMonitor.updatePhase('generation', 2, 'Updating affected pages...');
+
+    const updateStartTime = Date.now();
+    const { updatedPages, unchangedPages, addedPages, deletedPages } = await this.updateAffectedPages(
+      existingDoc,
+      parsedFiles,
+      archReport,
+      changes,
+      affectedPages
+    );
+    metrics.updateTime = Date.now() - updateStartTime;
+
+    this.progressMonitor.updatePhase('finalization', 3, 'Finalizing...');
+
+    const saveStartTime = Date.now();
+    const index = this.buildIndex(updatedPages);
+    const metadata = this.buildMetadata(context, parsedFiles);
+
+    const document: WikiDocument = {
+      ...existingDoc,
+      pages: updatedPages,
+      index,
+      metadata: {
+        ...metadata,
+        commitHash: context.options.watchMode ? undefined : metadata.commitHash,
+      },
+      updatedAt: new Date(),
+    };
+
+    await this.storage!.save(document);
+    await this.knowledgeBase!.index(document);
+
+    for (const page of updatedPages) {
+      const isNew = !existingDoc.pages.some(p => p.id === page.id);
+      if (isNew) {
+        await this.wikiHistory!.saveVersion(page, 'Page added', this.currentUser);
+        await this.wikiAudit!.log('page-created', {
+          pageId: page.id,
+          pageTitle: page.title,
+          version: page.version,
+          performedBy: this.currentUser,
+        });
+      } else {
+        await this.wikiHistory!.saveVersion(page, 'Incremental update', this.currentUser);
+        await this.wikiAudit!.log('page-updated', {
+          pageId: page.id,
+          pageTitle: page.title,
+          oldVersion: page.version - 1,
+          newVersion: page.version,
+          performedBy: this.currentUser,
+          details: { updateType: 'incremental' },
+        });
+      }
+    }
+
+    const snapshot = this.incrementalUpdater!.createSnapshot(
+      parsedFiles,
+      metadata.commitHash || 'incremental'
+    );
+    await this.incrementalUpdater!.saveSnapshot(snapshot);
+    metrics.saveTime = Date.now() - saveStartTime;
+
+    this.progressMonitor.complete('Incremental update completed');
+
+    const { changePercentage } = await this.incrementalUpdater!.detectChangesSinceLastSnapshot(parsedFiles);
+
+    return {
+      document,
+      result: {
+        success: true,
+        strategy: 'incremental',
+        pagesUpdated: updatedPages.filter(p => !addedPages.includes(p.id)).map(p => p.id),
+        pagesUnchanged: unchangedPages,
+        pagesAdded: addedPages,
+        pagesDeleted: deletedPages,
+        filesProcessed: parsedFiles.length,
+        totalTime: Date.now() - startTime,
+        changePercentage,
+        metrics,
+      },
+    };
+  }
+
+  private async detectChanges(
+    parsedFiles: ParsedFile[],
+    lastSnapshot: any
+  ): Promise<import('./incremental/types').ChangeInfo[]> {
+    const changes: import('./incremental/types').ChangeInfo[] = [];
+
+    if (!lastSnapshot) {
+      for (const file of parsedFiles) {
+        changes.push({
+          filePath: file.path,
+          changeType: 'added',
+          timestamp: new Date(),
+          newHash: this.computeFileHash(file),
+        });
+      }
+      return changes;
+    }
+
+    const snapshotFileMap = new Map<string, string>();
+    for (const file of lastSnapshot.files) {
+      snapshotFileMap.set(file.path, file.hash);
+    }
+
+    const currentFileMap = new Map<string, ParsedFile>();
+    for (const file of parsedFiles) {
+      currentFileMap.set(file.path, file);
+    }
+
+    for (const [path, hash] of snapshotFileMap) {
+      if (!currentFileMap.has(path)) {
+        changes.push({
+          filePath: path,
+          changeType: 'deleted',
+          timestamp: new Date(),
+          oldHash: hash,
+        });
+      }
+    }
+
+    for (const [path, file] of currentFileMap) {
+      const currentHash = this.computeFileHash(file);
+      const oldHash = snapshotFileMap.get(path);
+
+      if (!oldHash) {
+        changes.push({
+          filePath: path,
+          changeType: 'added',
+          timestamp: new Date(),
+          newHash: currentHash,
+        });
+      } else if (oldHash !== currentHash) {
+        changes.push({
+          filePath: path,
+          changeType: 'modified',
+          timestamp: new Date(),
+          oldHash,
+          newHash: currentHash,
+        });
+      }
+    }
+
+    return changes;
+  }
+
+  private findAffectedPagesByChanges(
+    changes: import('./incremental/types').ChangeInfo[],
+    document: WikiDocument
+  ): string[] {
+    const affectedPages = new Set<string>();
+    const changedFiles = changes.map(c => c.filePath);
+
+    for (const page of document.pages) {
+      const pageSourceFiles = new Set(page.metadata.sourceFiles);
+
+      for (const changedFile of changedFiles) {
+        if (pageSourceFiles.has(changedFile)) {
+          affectedPages.add(page.id);
+          break;
+        }
+      }
+
+      if (page.metadata.category === 'overview' || page.metadata.category === 'architecture') {
+        if (changes.some(c => c.changeType === 'added' || c.changeType === 'deleted')) {
+          affectedPages.add(page.id);
+        }
+      }
+    }
+
+    return Array.from(affectedPages);
+  }
+
+  private async updateAffectedPages(
+    existingDoc: WikiDocument,
+    parsedFiles: ParsedFile[],
+    architecture: any,
+    _changes: import('./incremental/types').ChangeInfo[],
+    affectedPageIds: string[]
+  ): Promise<{
+    updatedPages: WikiPage[];
+    unchangedPages: string[];
+    addedPages: string[];
+    deletedPages: string[];
+  }> {
+    const { PageUpdater } = await import('./incremental/page-updater');
+    const pageUpdater = new PageUpdater();
+
+    const updatedPages: WikiPage[] = [];
+    const unchangedPages: string[] = [];
+    const addedPages: string[] = [];
+    const deletedPages: string[] = [];
+
+    const existingPageMap = new Map(existingDoc.pages.map(p => [p.id, p]));
+
+    const newOverviewPage = this.createOverviewPage(parsedFiles, architecture);
+    const newArchitecturePage = this.createArchitecturePage(architecture);
+    const newModulePages = this.createModulePages(parsedFiles);
+    const newAPIPages = this.createAPIPages(parsedFiles);
+
+    const newPagesMap = new Map<string, WikiPage>();
+    newPagesMap.set('overview', newOverviewPage);
+    newPagesMap.set('architecture', newArchitecturePage);
+    for (const page of newModulePages) {
+      newPagesMap.set(page.id, page);
+    }
+    for (const page of newAPIPages) {
+      newPagesMap.set(page.id, page);
+    }
+
+    for (const [pageId, newPage] of newPagesMap) {
+      const existingPage = existingPageMap.get(pageId);
+
+      if (existingPage) {
+        if (affectedPageIds.includes(pageId)) {
+          const mergedPage = pageUpdater.mergePageContent(
+            existingPage,
+            newPage.content,
+            'smart-merge',
+            []
+          );
+          updatedPages.push(mergedPage);
+        } else {
+          updatedPages.push(existingPage);
+          unchangedPages.push(pageId);
+        }
+      } else {
+        updatedPages.push(newPage);
+        addedPages.push(pageId);
+      }
+    }
+
+    for (const [pageId] of existingPageMap) {
+      if (!newPagesMap.has(pageId)) {
+        deletedPages.push(pageId);
+      }
+    }
+
+    return { updatedPages, unchangedPages, addedPages, deletedPages };
+  }
+
+  private computeFileHash(file: ParsedFile): string {
+    const content = file.rawContent || '';
+    const symbols = file.symbols.map(s => `${s.name}:${s.kind}`).join(',');
+    return crypto
+      .createHash('md5')
+      .update(content + symbols)
+      .digest('hex');
   }
 
   private emitProgress(
@@ -1041,11 +1389,14 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     return this.knowledgeGraphService!.build();
   }
 
-  async queryKnowledgeGraph(query: string, options?: {
-    limit?: number;
-    types?: KnowledgeNode['type'][];
-    clusters?: string[];
-  }): Promise<KnowledgeNode[]> {
+  async queryKnowledgeGraph(
+    query: string,
+    options?: {
+      limit?: number;
+      types?: KnowledgeNode['type'][];
+      clusters?: string[];
+    }
+  ): Promise<KnowledgeNode[]> {
     return this.knowledgeGraphService!.query(query, options);
   }
 
@@ -1086,10 +1437,11 @@ export class WikiManager extends EventEmitter implements IWikiManager {
     return this.changeImpactAnalyzer!.analyzeIndirectImpact(directImpacts);
   }
 
-  async traceImpactChain(
-    filePath: string
-  ): Promise<import('./impact/types').ImpactChain[]> {
-    const directImpacts = await this.changeImpactAnalyzer!.analyzeDirectImpact(filePath, 'modified');
+  async traceImpactChain(filePath: string): Promise<import('./impact/types').ImpactChain[]> {
+    const directImpacts = await this.changeImpactAnalyzer!.analyzeDirectImpact(
+      filePath,
+      'modified'
+    );
     const indirectImpacts = await this.changeImpactAnalyzer!.analyzeIndirectImpact(directImpacts);
     return this.changeImpactAnalyzer!.traceImpactChain(filePath, directImpacts, indirectImpacts);
   }
@@ -1123,7 +1475,7 @@ export class WikiManager extends EventEmitter implements IWikiManager {
       overallRisk: 'medium',
       riskScore: 0,
       factors: [],
-      affectedAreas: impacts.map(i => i.path),
+      affectedAreas: impacts.map((i) => i.path),
       timeframe: 'immediate',
       recommendation: 'Test recommendation',
     };

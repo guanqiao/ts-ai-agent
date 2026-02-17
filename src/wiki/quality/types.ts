@@ -60,7 +60,11 @@ export interface IQualityEvaluator {
   evaluate(content: string, metadata?: QualityMetadata): Promise<QualityScore>;
   getScore(pageId: string): Promise<QualityScore | null>;
   getReport(pageId: string): Promise<QualityReport | null>;
-  generateReport(pageId: string, content: string, metadata?: QualityMetadata): Promise<QualityReport>;
+  generateReport(
+    pageId: string,
+    content: string,
+    metadata?: QualityMetadata
+  ): Promise<QualityReport>;
 }
 
 export interface QualityMetadata {
@@ -134,13 +138,7 @@ export const DIMENSION_WEIGHTS: Record<QualityDimension, number> = {
   consistency: 0.05,
 };
 
-export const REQUIRED_SECTIONS = [
-  'overview',
-  'installation',
-  'usage',
-  'api',
-  'examples',
-];
+export const REQUIRED_SECTIONS = ['overview', 'installation', 'usage', 'api', 'examples'];
 
 export const RECOMMENDED_SECTIONS = [
   'configuration',

@@ -109,9 +109,10 @@ export class KnowledgeCache implements IKnowledgeCache {
     const totalRequests = this.hits + this.misses;
     const hitRate = totalRequests > 0 ? this.hits / totalRequests : 0;
     const missRate = totalRequests > 0 ? this.misses / totalRequests : 0;
-    const averageAge = entries.length > 0
-      ? entries.reduce((sum, e) => sum + (now - e.createdAt), 0) / entries.length
-      : 0;
+    const averageAge =
+      entries.length > 0
+        ? entries.reduce((sum, e) => sum + (now - e.createdAt), 0) / entries.length
+        : 0;
 
     return {
       totalEntries,

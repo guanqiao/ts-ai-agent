@@ -105,9 +105,7 @@ export class IncrementalUpdateOptimizer implements IUpdateOptimizer {
     const plans: UpdatePlan[] = [];
     const processedPages = new Set<string>();
 
-    const criticalPages = impacts.affectedPages.filter(
-      (p) => p.priority === 'critical'
-    );
+    const criticalPages = impacts.affectedPages.filter((p) => p.priority === 'critical');
     for (const page of criticalPages) {
       if (!processedPages.has(page.pageId)) {
         plans.push(this.createUpdatePlan(page, impacts));
@@ -255,10 +253,7 @@ export class IncrementalUpdateOptimizer implements IUpdateOptimizer {
     return directTime + indirectTime;
   }
 
-  private determineStrategy(
-    changes: ChangeInfo[],
-    affectedPages: AffectedPage[]
-  ): UpdateStrategy {
+  private determineStrategy(changes: ChangeInfo[], affectedPages: AffectedPage[]): UpdateStrategy {
     if (changes.length > 100 || affectedPages.length > 50) {
       return {
         type: 'full',
@@ -322,10 +317,7 @@ export class IncrementalUpdateOptimizer implements IUpdateOptimizer {
     return operations.sort((a, b) => a.priority - b.priority);
   }
 
-  private createBatches(
-    operations: UpdateOperation[],
-    config: BatchConfig
-  ): UpdateBatch[] {
+  private createBatches(operations: UpdateOperation[], config: BatchConfig): UpdateBatch[] {
     const batches: UpdateBatch[] = [];
     const batchSize = config.batchSize;
 
@@ -504,8 +496,7 @@ export class IncrementalUpdateOptimizer implements IUpdateOptimizer {
   }
 
   private determineBatchPriority(operations: UpdateOperation[]): UpdatePriority {
-    const avgPriority =
-      operations.reduce((sum, op) => sum + op.priority, 0) / operations.length;
+    const avgPriority = operations.reduce((sum, op) => sum + op.priority, 0) / operations.length;
 
     if (avgPriority <= 1.5) return 'critical';
     if (avgPriority <= 2.5) return 'high';

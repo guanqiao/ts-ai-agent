@@ -192,7 +192,7 @@ export class WikiPermissionService implements IWikiPermission {
     const userPermissions = ROLE_PERMISSIONS[contributor.role];
     const globalPerms = this.globalPermissions.get(userId) || [];
     const allPermissions = [...userPermissions, ...globalPerms];
-    
+
     return permissions.some((p) => allPermissions.includes(p));
   }
 

@@ -1,4 +1,4 @@
-import { ToolDefinition, ToolCallRequest } from './types';
+import { ToolDefinition } from './types';
 
 export interface ToolSelection {
   tools: ToolDefinition[];
@@ -81,7 +81,12 @@ export class ToolPlanner {
       });
     }
 
-    if (taskLower.includes('write') || taskLower.includes('create') || taskLower.includes('创建') || taskLower.includes('写入')) {
+    if (
+      taskLower.includes('write') ||
+      taskLower.includes('create') ||
+      taskLower.includes('创建') ||
+      taskLower.includes('写入')
+    ) {
       const filePath = this.extractFilePath(task);
       steps.push({
         tool: 'write_file',
@@ -91,7 +96,12 @@ export class ToolPlanner {
       });
     }
 
-    if (taskLower.includes('search') || taskLower.includes('find') || taskLower.includes('查找') || taskLower.includes('搜索')) {
+    if (
+      taskLower.includes('search') ||
+      taskLower.includes('find') ||
+      taskLower.includes('查找') ||
+      taskLower.includes('搜索')
+    ) {
       const query = this.extractSearchQuery(task);
       steps.push({
         tool: 'search_code',
@@ -101,7 +111,12 @@ export class ToolPlanner {
       });
     }
 
-    if (taskLower.includes('execute') || taskLower.includes('run') || taskLower.includes('执行') || taskLower.includes('运行')) {
+    if (
+      taskLower.includes('execute') ||
+      taskLower.includes('run') ||
+      taskLower.includes('执行') ||
+      taskLower.includes('运行')
+    ) {
       steps.push({
         tool: 'execute_command',
         parameters: {},
@@ -129,10 +144,7 @@ export class ToolPlanner {
     const taskLower = context.originalTask.toLowerCase();
     const completedToolNames = context.completedSteps.map((s) => s.tool);
 
-    if (
-      taskLower.includes('read') &&
-      !completedToolNames.includes('read_file')
-    ) {
+    if (taskLower.includes('read') && !completedToolNames.includes('read_file')) {
       return {
         tool: 'read_file',
         parameters: {},
@@ -141,10 +153,7 @@ export class ToolPlanner {
       };
     }
 
-    if (
-      taskLower.includes('search') &&
-      !completedToolNames.includes('search_code')
-    ) {
+    if (taskLower.includes('search') && !completedToolNames.includes('search_code')) {
       return {
         tool: 'search_code',
         parameters: {},
@@ -153,10 +162,7 @@ export class ToolPlanner {
       };
     }
 
-    if (
-      context.completedSteps.some((s) => s.tool === 'read_file') &&
-      taskLower.includes('write')
-    ) {
+    if (context.completedSteps.some((s) => s.tool === 'read_file') && taskLower.includes('write')) {
       return {
         tool: 'write_file',
         parameters: {},
@@ -209,10 +215,7 @@ export class ToolPlanner {
   }
 
   private extractFilePath(task: string): string | null {
-    const patterns = [
-      /['"]([^'"]+\.[a-zA-Z]+)['"]/g,
-      /\b([a-zA-Z0-9_\-/]+\.[a-zA-Z]{1,4})\b/g,
-    ];
+    const patterns = [/['"]([^'"]+\.[a-zA-Z]+)['"]/g, /\b([a-zA-Z0-9_\-/]+\.[a-zA-Z]{1,4})\b/g];
 
     for (const pattern of patterns) {
       const matches = task.match(pattern);
@@ -227,7 +230,7 @@ export class ToolPlanner {
   private extractSearchQuery(task: string): string | null {
     const patterns = [
       /(?:search|find|查找|搜索)\s+(?:for\s+)?['"]?([^'"]+)['"]?/i,
-      /['"]([^'"]+)['"]/, 
+      /['"]([^'"]+)['"]/,
     ];
 
     for (const pattern of patterns) {

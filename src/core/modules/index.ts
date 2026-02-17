@@ -30,9 +30,7 @@ export class ModuleDependencyChecker {
 
   checkDependency(source: string, target: string): DependencyCheckResult {
     const matchingRules = this.rules.filter(
-      (r) =>
-        (r.from === source || r.from === '*') &&
-        (r.to === target || r.to === '*')
+      (r) => (r.from === source || r.from === '*') && (r.to === target || r.to === '*')
     );
 
     if (matchingRules.length === 0) {
