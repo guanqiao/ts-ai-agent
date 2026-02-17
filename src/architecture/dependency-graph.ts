@@ -2,7 +2,7 @@ import * as path from 'path';
 import { ParsedFile, SymbolKind, CodeSymbol } from '../types';
 import { DependencyGraph, DependencyNode, DependencyEdge, IDependencyGraphBuilder } from './types';
 
-export class DependencyGraphBuilder implements IDependencyGraphBuilder {
+export class CoreDependencyGraphBuilder implements IDependencyGraphBuilder {
   build(files: ParsedFile[]): DependencyGraph {
     const graph: DependencyGraph = {
       nodes: new Map(),
@@ -420,3 +420,5 @@ export class DependencyGraphBuilder implements IDependencyGraphBuilder {
     return null;
   }
 }
+
+export { CoreDependencyGraphBuilder as DependencyGraphBuilder };

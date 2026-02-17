@@ -17,7 +17,7 @@ import {
   DiagramNodeStyle,
 } from './types';
 
-export class ArchitectureDiagramGenerator implements IArchitectureDiagramGenerator {
+export class WikiArchitectureDiagramGenerator implements IArchitectureDiagramGenerator {
   private projectName: string = 'Unknown Project';
 
   setProjectName(name: string): void {
@@ -502,3 +502,5 @@ export class ArchitectureDiagramGenerator implements IArchitectureDiagramGenerat
     ];
   }
 }
+
+export { WikiArchitectureDiagramGenerator as ArchitectureDiagramGenerator };

@@ -12,7 +12,7 @@ import {
 } from './types';
 import { MermaidGenerator } from './mermaid-generator';
 
-export class ArchitectureDiagramGenerator {
+export class CoreArchitectureDiagramGenerator {
   private config: ArchitectureDiagramConfig;
   private mermaidGenerator: MermaidGenerator;
 
@@ -202,3 +202,5 @@ export class ArchitectureDiagramGenerator {
     return this.generate(architecture, sourceFiles).then((diagram) => this.export(diagram));
   }
 }
+
+export { CoreArchitectureDiagramGenerator as ArchitectureDiagramGenerator };

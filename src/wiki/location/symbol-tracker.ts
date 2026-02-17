@@ -1,7 +1,7 @@
 import { ParsedFile, SymbolKind } from '../../types';
 import { SymbolLocation, SymbolLocationKind, ISymbolTracker, Range } from './types';
 
-export class SymbolTracker implements ISymbolTracker {
+export class LocationSymbolTracker implements ISymbolTracker {
   private symbolTable: Map<string, SymbolLocation[]> = new Map();
   private parsedFiles: Map<string, ParsedFile> = new Map();
 
@@ -143,3 +143,5 @@ export class SymbolTracker implements ISymbolTracker {
     );
   }
 }
+
+export { LocationSymbolTracker as SymbolTracker };

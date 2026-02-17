@@ -17,7 +17,7 @@ import {
   DEFAULT_EDGE_STYLE,
 } from './types';
 
-export class DependencyGraphGenerator {
+export class WikiDependencyGraphGenerator {
   private options: GraphOptions;
   private nodeIdCounter: number = 0;
 
@@ -488,3 +488,5 @@ export class DependencyGraphGenerator {
     return `edge-${++this.nodeIdCounter}`;
   }
 }
+
+export { WikiDependencyGraphGenerator as DependencyGraphGenerator };

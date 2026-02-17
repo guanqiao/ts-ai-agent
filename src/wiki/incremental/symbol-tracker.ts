@@ -34,7 +34,7 @@ export interface SymbolDependencyGraph {
   reverseEdges: Map<string, Set<string>>;
 }
 
-export class SymbolTracker {
+export class IncrementalSymbolTracker {
   private symbolMap: Map<string, SymbolSnapshot> = new Map();
   private fileSymbolMap: Map<string, Set<string>> = new Map();
   private dependencyGraph: SymbolDependencyGraph = {
@@ -90,7 +90,7 @@ export class SymbolTracker {
       .filter((s): s is SymbolSnapshot => s !== undefined);
   }
 
-  detectChanges(oldTracker: SymbolTracker): SymbolChange[] {
+  detectChanges(oldTracker: IncrementalSymbolTracker): SymbolChange[] {
     const changes: SymbolChange[] = [];
     const processedIds = new Set<string>();
 
@@ -370,3 +370,5 @@ export class SymbolTracker {
     return parts[parts.length - 2] || 'root';
   }
 }
+
+export { IncrementalSymbolTracker as SymbolTracker };
