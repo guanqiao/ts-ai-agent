@@ -7,10 +7,12 @@ AI 驱动的 TypeScript/Java 代码文档生成器，基于 LLM 自动分析代�
 - **多语言支持**: TypeScript/JavaScript 和 Java 代码解析
 - **AI 驱动分析**: 使用 LLM 自动理解代码结构和语义
 - **Wiki 文档生成**: 自动生成结构化的 Wiki 文档
+- **增量更新**: 智能增量更新，仅更新变更部分，大幅提升效率
 - **知识图谱**: 构建代码知识图谱，支持语义搜索
 - **架构决策记录 (ADR)**: 管理架构决策记录
 - **变更影响分析**: 分析代码变更的影响范围
 - **协作功能**: 支持多人协作和权限管理
+- **进度持久化**: 支持任务进度保存与恢复
 
 ## 安装
 
@@ -97,9 +99,36 @@ tsd-gen wiki watch ./src
     "maxTokens": 4096,
     "baseUrl": "https://api.example.com/v1",
     "caCert": "/path/to/ca-cert.pem"
+  },
+  "incremental": {
+    "enabled": true,
+    "maxBatchSize": 50,
+    "parallelism": 4,
+    "debounceMs": 300,
+    "enableCaching": true,
+    "cacheTTL": 3600000
   }
 }
 ```
+
+### 增量更新策略
+
+增量更新支持三种策略：
+
+| 策略 | 触发条件 | 说明 |
+|------|----------|------|
+| `full` | 变更文件 > 50% | 完全重新生成所有文档 |
+| `incremental` | 变更文件 20%-50% | 增量更新受影响的页面 |
+| `selective` | 变更文件 < 20% | 仅更新变更相关的章节 |
+
+### 页面更新规则
+
+| 页面类型 | 触发条件 | 合并策略 |
+|----------|----------|----------|
+| `overview` | 文件数量/符号数量/架构变更 | 替换章节 |
+| `architecture` | 依赖/模式/层级变更 | 智能合并 |
+| `module` | 模块内文件/符号变更 | 符号级别更新 |
+| `api` | 符号/签名/描述变更 | 符号级别更新 |
 
 ## API 使用
 
@@ -124,6 +153,30 @@ await wikiManager.initialize('./src', {
 const pages = await wikiManager.generateWiki();
 ```
 
+### 增量更新 API
+
+```typescript
+import { 
+  IncrementalUpdateOptimizer, 
+  HashCacheManager,
+  ImpactAnalyzer,
+  ParallelUpdater 
+} from 'tsd-generator';
+
+const hashCache = new HashCacheManager('./wiki/.cache');
+const impactAnalyzer = new ImpactAnalyzer();
+const optimizer = new IncrementalUpdateOptimizer(hashCache, impactAnalyzer);
+
+const changes = await hashCache.detectChanges('./src');
+const analysis = await optimizer.analyzeChanges(changes);
+
+if (analysis.recommendedStrategy.type === 'incremental') {
+  const updater = new ParallelUpdater({ parallelism: 4 });
+  const result = await updater.executeBatch(analysis.affectedPages);
+  console.log(`Updated ${result.pagesUpdated.length} pages`);
+}
+```
+
 ## 模块结构
 
 ```
@@ -135,11 +188,25 @@ src/
 │   ├── knowledge/   # 知识图谱
 │   ├── sharing/     # 共享服务
 │   ├── impact/      # 变更影响分析
+│   ├── incremental/ # 增量更新引擎
+│   │   ├── hash-cache.ts        # 文件哈希缓存
+│   │   ├── adaptive-threshold.ts # 自适应阈值
+│   │   ├── symbol-tracker.ts    # 符号追踪
+│   │   ├── impact-analyzer.ts   # 影响分析
+│   │   ├── page-updater.ts      # 页面更新器
+│   │   ├── parallel-updater.ts  # 并行更新器
+│   │   └── myers-diff.ts        # Myers diff 算法
+│   ├── memory/      # 记忆与交互历史
 │   └── ...
 ├── search/          # 混合搜索引擎
 ├── config/          # 配置管理
 ├── changelog/       # 变更日志生成
-└── cli/             # 命令行接口
+├── sync/            # 同步服务
+│   ├── snapshot-index.ts  # 快照索引
+│   └── incremental-updater.ts # 增量更新器
+├── cli/             # 命令行接口
+│   └── progress-bar.ts    # 进度条组件
+└── error/           # 错误处理
 ```
 
 ## 开发
