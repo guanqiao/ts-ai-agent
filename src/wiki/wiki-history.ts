@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { WikiPage, WikiPageVersion, WikiPageHistory, IWikiHistory } from './types';
+import { logger } from '../utils/logger';
 
 export class WikiHistory implements IWikiHistory {
   private historyDir: string;
@@ -12,8 +13,8 @@ export class WikiHistory implements IWikiHistory {
   private async ensureHistoryDir(): Promise<void> {
     try {
       await fs.mkdir(this.historyDir, { recursive: true });
-    } catch {
-      // 目录已存在
+    } catch (error) {
+      logger.debug('History directory creation skipped', { error: String(error) });
     }
   }
 
@@ -69,8 +70,8 @@ export class WikiHistory implements IWikiHistory {
       const existingMeta = await fs.readFile(metaPath, 'utf-8');
       const parsed = JSON.parse(existingMeta) as WikiPageHistory;
       historyMeta.versions = parsed.versions;
-    } catch {
-      // 文件不存在，使用默认值
+    } catch (error) {
+      logger.debug('No existing history meta, using defaults', { pageId: page.id, error: String(error) });
     }
 
     historyMeta.versions.push({
@@ -99,7 +100,8 @@ export class WikiHistory implements IWikiHistory {
       const versionFilePath = this.getVersionFilePath(pageId, version);
       const content = await fs.readFile(versionFilePath, 'utf-8');
       return JSON.parse(content) as WikiPageVersion;
-    } catch {
+    } catch (error) {
+      logger.debug('Failed to get version', { pageId, version, error: String(error) });
       return null;
     }
   }
@@ -109,7 +111,8 @@ export class WikiHistory implements IWikiHistory {
       const metaPath = this.getHistoryMetaPath(pageId);
       const content = await fs.readFile(metaPath, 'utf-8');
       return JSON.parse(content) as WikiPageHistory;
-    } catch {
+    } catch (error) {
+      logger.debug('Failed to get history', { pageId, error: String(error) });
       return null;
     }
   }
@@ -243,7 +246,8 @@ export class WikiHistory implements IWikiHistory {
       }
 
       return true;
-    } catch {
+    } catch (error) {
+      logger.debug('Failed to delete version', { pageId, version, error: String(error) });
       return false;
     }
   }

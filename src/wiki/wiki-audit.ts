@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { WikiAuditLog, WikiAuditLogQuery, IWikiAudit } from './types';
+import { logger } from '../utils/logger';
 
 export class WikiAudit implements IWikiAudit {
   private auditDir: string;
@@ -15,8 +16,8 @@ export class WikiAudit implements IWikiAudit {
   private async ensureAuditDir(): Promise<void> {
     try {
       await fs.mkdir(this.auditDir, { recursive: true });
-    } catch {
-      // 目录已存在
+    } catch (error) {
+      logger.debug('Audit directory creation skipped', { error: String(error) });
     }
   }
 
@@ -27,13 +28,14 @@ export class WikiAudit implements IWikiAudit {
   }
 
   private async loadLogs(): Promise<void> {
-    if (this.logs.length > 0) return; // Already loaded
+    if (this.logs.length > 0) return;
     try {
       const auditFile = this.getAuditFilePath();
       const content = await fs.readFile(auditFile, 'utf-8');
       const parsed = JSON.parse(content) as WikiAuditLog[];
       this.logs = parsed.slice(-this.maxMemoryLogs);
-    } catch {
+    } catch (error) {
+      logger.debug('No existing audit logs loaded', { error: String(error) });
       this.logs = [];
     }
   }
@@ -118,7 +120,8 @@ export class WikiAudit implements IWikiAudit {
       return files
         .filter((f) => f.startsWith('audit-') && f.endsWith('.json'))
         .map((f) => path.join(this.auditDir, f));
-    } catch {
+    } catch (error) {
+      logger.debug('Failed to read audit directory', { error: String(error) });
       return [];
     }
   }
@@ -132,8 +135,8 @@ export class WikiAudit implements IWikiAudit {
         const content = await fs.readFile(file, 'utf-8');
         const logs = JSON.parse(content) as WikiAuditLog[];
         allLogs.push(...logs);
-      } catch {
-        // 跳过无法读取的文件
+      } catch (error) {
+        logger.debug('Failed to read audit file', { file, error: String(error) });
       }
     }
 

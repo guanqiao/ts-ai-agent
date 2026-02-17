@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { IWikiStorage, WikiDocument, WikiPage, WikiDocumentMetadata, WikiIndex, WikiLanguage } from './types';
+import { logger } from '../utils/logger';
 
 interface StoredDocument {
   id: string;
@@ -101,7 +102,8 @@ export class WikiStorage implements IWikiStorage {
         createdAt: docCreatedAt,
         updatedAt: docUpdatedAt,
       };
-    } catch {
+    } catch (error) {
+      logger.debug('Failed to load document', { error: String(error) });
       return null;
     }
   }
@@ -122,7 +124,8 @@ export class WikiStorage implements IWikiStorage {
       page.createdAt = new Date(page.createdAt);
       page.updatedAt = new Date(page.updatedAt);
       return page;
-    } catch {
+    } catch (error) {
+      logger.debug('Failed to load page', { pageId, error: String(error) });
       return null;
     }
   }
@@ -132,8 +135,8 @@ export class WikiStorage implements IWikiStorage {
 
     try {
       await fs.promises.unlink(pagePath);
-    } catch {
-      // Page may not exist
+    } catch (error) {
+      logger.debug('Failed to delete page', { pageId, error: String(error) });
     }
   }
 
