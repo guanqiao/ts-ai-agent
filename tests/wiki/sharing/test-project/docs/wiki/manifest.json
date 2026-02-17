@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "test-page.md",
+      "type": "page",
+      "hash": "ccacbf86",
+      "size": 135,
+      "lastModified": "2026-02-17T04:48:36.252Z"
+    },
+    {
+      "path": "index.json",
+      "type": "index",
+      "hash": "274c0e09",
+      "size": 0,
+      "lastModified": "2026-02-17T04:48:36.262Z"
+    },
+    {
+      "path": "metadata.json",
+      "type": "metadata",
+      "hash": "536f766d",
+      "size": 0,
+      "lastModified": "2026-02-17T04:48:36.262Z"
+    }
+  ],
+  "checksums": {
+    "test-page.md": "ccacbf86",
+    "index.json": "274c0e09",
+    "metadata.json": "536f766d"
+  }
+}
