@@ -88,3 +88,30 @@ export function createCommand(
 ): Command {
   return config;
 }
+
+export {
+  handleWikiInit,
+  handleWikiGenerate,
+  handleWikiWatch,
+  handleWikiQuery,
+  handleWikiSearch,
+  handleWikiExport,
+  handleWikiArchitecture,
+  handleWikiSync,
+  handleWikiShare,
+  handleWikiGraph,
+  handleWikiADR,
+  handleWikiCollab,
+  handleWikiImpact,
+} from './wiki';
+
+export {
+  handleGenerateCommand,
+  parseInput,
+  buildGenerateOptions,
+} from './generate';
+
+export {
+  handleParseCommand,
+  buildParseOptions,
+} from './parse';

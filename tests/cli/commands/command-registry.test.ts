@@ -1,4 +1,4 @@
-import { CommandRegistry, Command, CommandContext } from '@cli/commands';
+import { CommandRegistry, Command, CommandContext } from '../../../src/cli/commands/index';
 
 describe('CommandRegistry', () => {
   let registry: CommandRegistry;
