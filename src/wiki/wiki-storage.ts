@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { IWikiStorage, WikiDocument, WikiPage, WikiDocumentMetadata, WikiIndex } from './types';
+import { IWikiStorage, WikiDocument, WikiPage, WikiDocumentMetadata, WikiIndex, WikiLanguage } from './types';
 
 interface StoredDocument {
   id: string;
@@ -13,17 +13,20 @@ interface StoredDocument {
 
 export class WikiStorage implements IWikiStorage {
   private storagePath: string;
+  private wikiLanguage: WikiLanguage;
   private wikiDir: string;
   private indexPath: string;
   private metadataPath: string;
   private documentPath: string;
 
-  constructor(projectPath: string) {
+  constructor(projectPath: string, wikiLanguage: WikiLanguage = WikiLanguage.English) {
     this.storagePath = path.join(projectPath, '.wiki');
-    this.wikiDir = path.join(this.storagePath, 'pages');
-    this.indexPath = path.join(this.storagePath, 'index.json');
-    this.metadataPath = path.join(this.storagePath, 'metadata.json');
-    this.documentPath = path.join(this.storagePath, 'document.json');
+    this.wikiLanguage = wikiLanguage;
+    const languageDir = path.join(this.storagePath, wikiLanguage);
+    this.wikiDir = path.join(languageDir, 'pages');
+    this.indexPath = path.join(languageDir, 'index.json');
+    this.metadataPath = path.join(languageDir, 'metadata.json');
+    this.documentPath = path.join(languageDir, 'document.json');
   }
 
   async save(document: WikiDocument): Promise<void> {

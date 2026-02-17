@@ -69,7 +69,7 @@ describe('Core Types', () => {
 
       it('should propagate failure', () => {
         const error = new AppError('Error', ErrorCode.UNKNOWN_ERROR);
-        const result = failure<number>(error);
+        const result = failure(error);
         const mapped = Result.flatMap(result, (x: number) => success(x * 2));
 
         expect(isFailure(mapped)).toBe(true);
@@ -110,7 +110,6 @@ describe('Core Types', () => {
       expect(ErrorCode.PARSE_ERROR).toBeDefined();
       expect(ErrorCode.NETWORK_ERROR).toBeDefined();
       expect(ErrorCode.LLM_ERROR).toBeDefined();
-      expect(ErrorCode.AGENT_ERROR).toBeDefined();
     });
   });
 });

@@ -2,6 +2,11 @@ import { DocumentFormat, Language, ParsedFile } from '../types';
 import { ArchitectureReport } from '../architecture/types';
 import { ChangeSet } from '../sync/types';
 
+export enum WikiLanguage {
+  English = 'en',
+  Chinese = 'zh',
+}
+
 export interface WikiPage {
   id: string;
   title: string;
@@ -247,6 +252,7 @@ export interface WikiOptions {
   outputDir: string;
   format: DocumentFormat;
   language?: Language;
+  wikiLanguages?: WikiLanguage[];
   includePrivate?: boolean;
   generateIndex?: boolean;
   generateSearch?: boolean;
